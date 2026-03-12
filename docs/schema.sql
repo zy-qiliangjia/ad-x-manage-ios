@@ -5,11 +5,11 @@
 -- 排序规则：utf8mb4_unicode_ci
 -- ============================================================
 
-CREATE DATABASE IF NOT EXISTS `ad_manage`
+CREATE DATABASE IF NOT EXISTS `ad_manage_x`
     DEFAULT CHARACTER SET utf8mb4
     DEFAULT COLLATE utf8mb4_unicode_ci;
 
-USE `ad_manage`;
+USE `ad_manage_x`;
 
 -- ------------------------------------------------------------
 -- 1. 用户表

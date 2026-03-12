@@ -1,0 +1,103 @@
+package advertiserrepo
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
+	"ad-x-manage/backend/internal/model/entity"
+)
+
+type Repository interface {
+	Upsert(ctx context.Context, advertisers []*entity.Advertiser) error
+	FindByUserAndPlatform(ctx context.Context, userID uint64, platform, keyword string, page, pageSize int) ([]*entity.Advertiser, int64, error)
+	FindByID(ctx context.Context, id uint64) (*entity.Advertiser, error)
+	FindByPlatformID(ctx context.Context, platform, advertiserID string) (*entity.Advertiser, error)
+	UpdateSyncedAt(ctx context.Context, id uint64, t time.Time) error
+	RevokeByTokenID(ctx context.Context, tokenID uint64) error
+}
+
+type repo struct {
+	db *gorm.DB
+}
+
+func New(db *gorm.DB) Repository {
+	return &repo{db: db}
+}
+
+// Upsert 批量插入或更新广告主（以 platform + advertiser_id 为唯一键）。
+func (r *repo) Upsert(ctx context.Context, advertisers []*entity.Advertiser) error {
+	if len(advertisers) == 0 {
+		return nil
+	}
+	return r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "platform"}, {Name: "advertiser_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"advertiser_name", "currency", "timezone", "status", "synced_at", "updated_at",
+			}),
+		}).
+		CreateInBatches(advertisers, 100).Error
+}
+
+// FindByUserAndPlatform 查询用户在指定平台的广告主列表（支持关键词搜索 + 分页）。
+func (r *repo) FindByUserAndPlatform(ctx context.Context, userID uint64, platform, keyword string, page, pageSize int) ([]*entity.Advertiser, int64, error) {
+	q := r.db.WithContext(ctx).
+		Where("user_id = ? AND status = 1", userID)
+
+	if platform != "" {
+		q = q.Where("platform = ?", platform)
+	}
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		q = q.Where("advertiser_name LIKE ? OR advertiser_id LIKE ?", like, like)
+	}
+
+	var total int64
+	if err := q.Model(&entity.Advertiser{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var list []*entity.Advertiser
+	offset := (page - 1) * pageSize
+	err := q.Order("id DESC").Offset(offset).Limit(pageSize).Find(&list).Error
+	return list, total, err
+}
+
+func (r *repo) FindByID(ctx context.Context, id uint64) (*entity.Advertiser, error) {
+	var a entity.Advertiser
+	err := r.db.WithContext(ctx).First(&a, id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	return &a, err
+}
+
+func (r *repo) FindByPlatformID(ctx context.Context, platform, advertiserID string) (*entity.Advertiser, error) {
+	var a entity.Advertiser
+	err := r.db.WithContext(ctx).
+		Where("platform = ? AND advertiser_id = ?", platform, advertiserID).
+		First(&a).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	return &a, err
+}
+
+func (r *repo) UpdateSyncedAt(ctx context.Context, id uint64, t time.Time) error {
+	return r.db.WithContext(ctx).
+		Model(&entity.Advertiser{}).
+		Where("id = ?", id).
+		Update("synced_at", t).Error
+}
+
+// RevokeByTokenID 解绑时将该 token 下所有广告主标记为停用。
+func (r *repo) RevokeByTokenID(ctx context.Context, tokenID uint64) error {
+	return r.db.WithContext(ctx).
+		Model(&entity.Advertiser{}).
+		Where("token_id = ?", tokenID).
+		Update("status", 0).Error
+}

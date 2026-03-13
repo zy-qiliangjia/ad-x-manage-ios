@@ -203,12 +203,12 @@ func (c *Client) GetBalance(accessToken, advertiserID string) (*platform.Balance
 // ── 推广系列 ───────────────────────────────────────────────────
 
 func (c *Client) GetCampaigns(accessToken, advertiserID string, page, pageSize int) ([]*platform.CampaignInfo, int64, error) {
-	body := map[string]any{
-		"advertiser_id": advertiserID,
-		"page":          page,
-		"page_size":     pageSize,
-		"fields":        []string{"campaign_id", "campaign_name", "status", "budget_mode", "budget", "objective_type"},
-	}
+	fields, _ := json.Marshal([]string{"campaign_id", "campaign_name", "operation_status", "budget_mode", "budget", "objective_type"})
+	params := url.Values{}
+	params.Set("advertiser_id", advertiserID)
+	params.Set("page", fmt.Sprintf("%d", page))
+	params.Set("page_size", fmt.Sprintf("%d", pageSize))
+	params.Set("fields", string(fields))
 	var resp struct {
 		Code    int    `json:"code"`
 		Message string `json:"message"`
@@ -216,7 +216,7 @@ func (c *Client) GetCampaigns(accessToken, advertiserID string, page, pageSize i
 			List []struct {
 				CampaignID    string  `json:"campaign_id"`
 				CampaignName  string  `json:"campaign_name"`
-				Status        string  `json:"status"`
+				Status        string  `json:"operation_status"`
 				BudgetMode    string  `json:"budget_mode"`
 				Budget        float64 `json:"budget"`
 				ObjectiveType string  `json:"objective_type"`
@@ -226,7 +226,7 @@ func (c *Client) GetCampaigns(accessToken, advertiserID string, page, pageSize i
 			} `json:"page_info"`
 		} `json:"data"`
 	}
-	if err := c.post("/open_api/"+apiVersion+"/campaign/get/", body, &resp); err != nil {
+	if err := c.get("/open_api/"+apiVersion+"/campaign/get/", params, accessToken, &resp); err != nil {
 		return nil, 0, err
 	}
 	if resp.Code != 0 {
@@ -287,14 +287,15 @@ func (c *Client) UpdateCampaignStatus(accessToken, advertiserID, campaignID, sta
 // ── 广告组 ─────────────────────────────────────────────────────
 
 func (c *Client) GetAdGroups(accessToken, advertiserID, campaignID string, page, pageSize int) ([]*platform.AdGroupInfo, int64, error) {
-	body := map[string]any{
-		"advertiser_id": advertiserID,
-		"page":          page,
-		"page_size":     pageSize,
-		"fields":        []string{"adgroup_id", "adgroup_name", "campaign_id", "status", "budget_mode", "budget", "bid_type", "bid_price"},
-	}
+	fields, _ := json.Marshal([]string{"adgroup_id", "adgroup_name", "campaign_id", "operation_status", "budget_mode", "budget", "bid_type", "bid_price"})
+	params := url.Values{}
+	params.Set("advertiser_id", advertiserID)
+	params.Set("page", fmt.Sprintf("%d", page))
+	params.Set("page_size", fmt.Sprintf("%d", pageSize))
+	params.Set("fields", string(fields))
 	if campaignID != "" {
-		body["filtering"] = map[string]any{"campaign_ids": []string{campaignID}}
+		filtering, _ := json.Marshal(map[string]any{"campaign_ids": []string{campaignID}})
+		params.Set("filtering", string(filtering))
 	}
 	var resp struct {
 		Code    int    `json:"code"`
@@ -304,7 +305,7 @@ func (c *Client) GetAdGroups(accessToken, advertiserID, campaignID string, page,
 				AdgroupID   string  `json:"adgroup_id"`
 				AdgroupName string  `json:"adgroup_name"`
 				CampaignID  string  `json:"campaign_id"`
-				Status      string  `json:"status"`
+				Status      string  `json:"operation_status"`
 				BudgetMode  string  `json:"budget_mode"`
 				Budget      float64 `json:"budget"`
 				BidType     string  `json:"bid_type"`
@@ -315,7 +316,7 @@ func (c *Client) GetAdGroups(accessToken, advertiserID, campaignID string, page,
 			} `json:"page_info"`
 		} `json:"data"`
 	}
-	if err := c.postWithToken("/open_api/"+apiVersion+"/adgroup/get/", body, accessToken, &resp); err != nil {
+	if err := c.get("/open_api/"+apiVersion+"/adgroup/get/", params, accessToken, &resp); err != nil {
 		return nil, 0, err
 	}
 	if resp.Code != 0 {
@@ -378,14 +379,15 @@ func (c *Client) UpdateAdGroupStatus(accessToken, advertiserID, adGroupID, statu
 // ── 广告 ───────────────────────────────────────────────────────
 
 func (c *Client) GetAds(accessToken, advertiserID, adGroupID string, page, pageSize int) ([]*platform.AdInfo, int64, error) {
-	body := map[string]any{
-		"advertiser_id": advertiserID,
-		"page":          page,
-		"page_size":     pageSize,
-		"fields":        []string{"ad_id", "ad_name", "adgroup_id", "status"},
-	}
+	fields, _ := json.Marshal([]string{"ad_id", "ad_name", "adgroup_id", "operation_status"})
+	params := url.Values{}
+	params.Set("advertiser_id", advertiserID)
+	params.Set("page", fmt.Sprintf("%d", page))
+	params.Set("page_size", fmt.Sprintf("%d", pageSize))
+	params.Set("fields", string(fields))
 	if adGroupID != "" {
-		body["filtering"] = map[string]any{"adgroup_ids": []string{adGroupID}}
+		filtering, _ := json.Marshal(map[string]any{"adgroup_ids": []string{adGroupID}})
+		params.Set("filtering", string(filtering))
 	}
 	var resp struct {
 		Code    int    `json:"code"`
@@ -395,14 +397,14 @@ func (c *Client) GetAds(accessToken, advertiserID, adGroupID string, page, pageS
 				AdID      string `json:"ad_id"`
 				AdName    string `json:"ad_name"`
 				AdgroupID string `json:"adgroup_id"`
-				Status    string `json:"status"`
+				Status    string `json:"operation_status"`
 			} `json:"list"`
 			PageInfo struct {
 				TotalNumber int64 `json:"total_number"`
 			} `json:"page_info"`
 		} `json:"data"`
 	}
-	if err := c.postWithToken("/open_api/"+apiVersion+"/ad/get/", body, accessToken, &resp); err != nil {
+	if err := c.get("/open_api/"+apiVersion+"/ad/get/", params, accessToken, &resp); err != nil {
 		return nil, 0, err
 	}
 	if resp.Code != 0 {

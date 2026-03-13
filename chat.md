@@ -31,3 +31,8 @@
 
 
 帮我输出完整的方案及sql,
+
+
+ curl -s -X POST "http://localhost:8080/api/v1/advertisers/1/sync" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json"

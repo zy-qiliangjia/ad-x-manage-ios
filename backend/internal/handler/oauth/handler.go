@@ -68,6 +68,20 @@ func (h *Handler) Callback(c *gin.Context) {
 	response.OK(c, res)
 }
 
+// Redirect TikTok/Kwai 授权完成后回调此端点（需注册为平台 redirect_uri）
+// GET /oauth/:platform/redirect?code=xxx&state=xxx
+// 后端将参数透传到 iOS 自定义 scheme，由 ASWebAuthenticationSession 拦截
+func (h *Handler) Redirect(c *gin.Context) {
+	code := c.Query("code")
+	state := c.Query("state")
+	if code == "" || state == "" {
+		c.String(400, "missing code or state")
+		return
+	}
+	target := fmt.Sprintf("adxmanage://oauth/callback?code=%s&state=%s", code, state)
+	c.Redirect(302, target)
+}
+
 // Revoke 解绑授权
 // DELETE /api/v1/oauth/:platform/:token_id
 func (h *Handler) Revoke(c *gin.Context) {

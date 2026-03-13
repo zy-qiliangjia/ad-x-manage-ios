@@ -72,13 +72,13 @@ func (c *Client) ExchangeToken(code string) (*platform.TokenResult, error) {
 		Code    int    `json:"code"`
 		Message string `json:"message"`
 		Data    struct {
-			AccessToken           string  `json:"access_token"`
-			AdvertiserIDs         []int64 `json:"advertiser_ids"`
-			ExpiresIn             int64   `json:"expires_in"`
-			RefreshToken          string  `json:"refresh_token"`
-			RefreshTokenExpiresIn int64   `json:"refresh_token_expires_in"`
-			OpenID                string  `json:"open_id"`
-			Scope                 string  `json:"scope"`
+			AccessToken           string   `json:"access_token"`
+			AdvertiserIDs         []string `json:"advertiser_ids"`
+			ExpiresIn             int64    `json:"expires_in"`
+			RefreshToken          string   `json:"refresh_token"`
+			RefreshTokenExpiresIn int64    `json:"refresh_token_expires_in"`
+			OpenID                string   `json:"open_id"`
+			Scope                 any      `json:"scope"`
 		} `json:"data"`
 	}
 	if err := c.post("/open_api/"+apiVersion+"/oauth2/access_token/", body, &resp); err != nil {
@@ -94,7 +94,7 @@ func (c *Client) ExchangeToken(code string) (*platform.TokenResult, error) {
 		RefreshToken:        resp.Data.RefreshToken,
 		ExpiresAt:           now.Add(time.Duration(resp.Data.ExpiresIn) * time.Second),
 		RefreshTokenExpires: now.Add(time.Duration(resp.Data.RefreshTokenExpiresIn) * time.Second),
-		Scope:               resp.Data.Scope,
+		Scope:               fmt.Sprintf("%v", resp.Data.Scope),
 	}, nil
 }
 
@@ -148,7 +148,7 @@ func (c *Client) GetAdvertisers(accessToken string) ([]*platform.AdvertiserInfo,
 		Message string `json:"message"`
 		Data    struct {
 			List []struct {
-				AdvertiserID   int64  `json:"advertiser_id"`
+				AdvertiserID   string `json:"advertiser_id"`
 				AdvertiserName string `json:"advertiser_name"`
 				Status         string `json:"status"`
 				Currency       string `json:"currency"`
@@ -165,7 +165,7 @@ func (c *Client) GetAdvertisers(accessToken string) ([]*platform.AdvertiserInfo,
 	result := make([]*platform.AdvertiserInfo, 0, len(resp.Data.List))
 	for _, item := range resp.Data.List {
 		result = append(result, &platform.AdvertiserInfo{
-			AdvertiserID:   fmt.Sprintf("%d", item.AdvertiserID),
+			AdvertiserID:   item.AdvertiserID,
 			AdvertiserName: item.AdvertiserName,
 			Currency:       item.Currency,
 			Timezone:       item.Timezone,

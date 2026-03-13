@@ -109,6 +109,9 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 		authGroup.POST("/login", authHandler.Login)
 	}
 
+	// OAuth 平台回调（无需 JWT，由平台服务器直接调用）
+	v1.GET("/oauth/:platform/redirect", oauthHandler.Redirect)
+
 	// ── 需要登录的路由 ────────────────────────────────────
 	protected := v1.Group("", middleware.Auth(cfg.App.Secret, rdb))
 	{

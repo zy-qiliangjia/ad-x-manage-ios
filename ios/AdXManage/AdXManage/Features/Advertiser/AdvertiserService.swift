@@ -36,4 +36,10 @@ final class AdvertiserService {
     func sync(id: UInt64) async throws -> SyncResponse {
         try await client.request(.advertiserSync(id: Int(id)))
     }
+
+    // MARK: - 全量触发同步（登录后调用，后台异步执行，立即返回）
+
+    func syncAll() async throws {
+        try await client.requestVoid(.advertiserSyncAll)
+    }
 }

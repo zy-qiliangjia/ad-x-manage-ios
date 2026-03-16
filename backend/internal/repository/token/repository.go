@@ -16,6 +16,7 @@ type Repository interface {
 	FindByID(ctx context.Context, id uint64) (*entity.PlatformToken, error)
 	FindByUserAndPlatform(ctx context.Context, userID uint64, platform string) ([]*entity.PlatformToken, error)
 	FindActiveByUserAndPlatform(ctx context.Context, userID uint64, platform string) ([]*entity.PlatformToken, error)
+	FindByUniqueKey(ctx context.Context, userID uint64, platform, openUserID string) (*entity.PlatformToken, error)
 	UpdateToken(ctx context.Context, id uint64, accessTokenEnc, refreshTokenEnc string, expiresAt time.Time) error
 	Revoke(ctx context.Context, id uint64) error
 	// FindExpiringSoon 查找 30 分钟内即将过期的 token（用于定时刷新）
@@ -66,6 +67,17 @@ func (r *repo) FindActiveByUserAndPlatform(ctx context.Context, userID uint64, p
 		Where("user_id = ? AND platform = ? AND status = ?", userID, platform, entity.TokenStatusActive).
 		Find(&tokens).Error
 	return tokens, err
+}
+
+func (r *repo) FindByUniqueKey(ctx context.Context, userID uint64, platform, openUserID string) (*entity.PlatformToken, error) {
+	var t entity.PlatformToken
+	err := r.db.WithContext(ctx).
+		Where("user_id = ? AND platform = ? AND open_user_id = ?", userID, platform, openUserID).
+		First(&t).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	return &t, err
 }
 
 func (r *repo) UpdateToken(ctx context.Context, id uint64, accessTokenEnc, refreshTokenEnc string, expiresAt time.Time) error {

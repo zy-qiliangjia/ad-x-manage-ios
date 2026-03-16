@@ -97,6 +97,18 @@ func (h *Handler) Sync(c *gin.Context) {
 	response.OK(c, res)
 }
 
+// SyncAll 对当前用户所有广告主触发后台全量同步（立即返回，异步执行）
+// POST /api/v1/advertisers/sync
+func (h *Handler) SyncAll(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	count, err := h.svc.SyncAll(c.Request.Context(), userID)
+	if err != nil {
+		response.ServerError(c, fmt.Sprintf("触发同步失败: %v", err))
+		return
+	}
+	response.OK(c, gin.H{"triggered": count})
+}
+
 func parseID(c *gin.Context, param string) (uint64, error) {
 	id, err := strconv.ParseUint(c.Param(param), 10, 64)
 	if err != nil || id == 0 {

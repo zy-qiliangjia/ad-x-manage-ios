@@ -17,6 +17,7 @@ enum APIEndpoint {
 
     // ── 广告主 ─────────────────────────────────────────────
     case advertisers
+    case advertiserSyncAll
     case advertiserBalance(id: Int)
     case advertiserSync(id: Int)
 
@@ -50,6 +51,7 @@ enum APIEndpoint {
         case .oauthRevoke(let p, let id):         return "/oauth/\(p)/\(id)"
 
         case .advertisers:                        return "/advertisers"
+        case .advertiserSyncAll:                  return "/advertisers/sync"
         case .advertiserBalance(let id):          return "/advertisers/\(id)/balance"
         case .advertiserSync(let id):             return "/advertisers/\(id)/sync"
 
@@ -72,7 +74,7 @@ enum APIEndpoint {
     var method: String {
         switch self {
         case .register, .login, .logout, .refresh,
-             .oauthCallback, .advertiserSync:
+             .oauthCallback, .advertiserSync, .advertiserSyncAll:
             return "POST"
         case .oauthRevoke:
             return "DELETE"

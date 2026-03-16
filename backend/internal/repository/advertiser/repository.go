@@ -14,6 +14,7 @@ import (
 type Repository interface {
 	Upsert(ctx context.Context, advertisers []*entity.Advertiser) error
 	FindByUserAndPlatform(ctx context.Context, userID uint64, platform, keyword string, page, pageSize int) ([]*entity.Advertiser, int64, error)
+	FindAllActiveByUserID(ctx context.Context, userID uint64) ([]*entity.Advertiser, error)
 	FindByID(ctx context.Context, id uint64) (*entity.Advertiser, error)
 	FindByPlatformID(ctx context.Context, platform, advertiserID string) (*entity.Advertiser, error)
 	UpdateSyncedAt(ctx context.Context, id uint64, t time.Time) error
@@ -37,7 +38,7 @@ func (r *repo) Upsert(ctx context.Context, advertisers []*entity.Advertiser) err
 		Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "platform"}, {Name: "advertiser_id"}},
 			DoUpdates: clause.AssignmentColumns([]string{
-				"advertiser_name", "currency", "timezone", "status", "synced_at", "updated_at",
+				"token_id", "advertiser_name", "currency", "timezone", "status", "synced_at", "updated_at",
 			}),
 		}).
 		CreateInBatches(advertisers, 100).Error
@@ -65,6 +66,15 @@ func (r *repo) FindByUserAndPlatform(ctx context.Context, userID uint64, platfor
 	offset := (page - 1) * pageSize
 	err := q.Order("id DESC").Offset(offset).Limit(pageSize).Find(&list).Error
 	return list, total, err
+}
+
+// FindAllActiveByUserID 查询该用户下所有有效广告主（不分页，用于触发全量同步）。
+func (r *repo) FindAllActiveByUserID(ctx context.Context, userID uint64) ([]*entity.Advertiser, error) {
+	var list []*entity.Advertiser
+	err := r.db.WithContext(ctx).
+		Where("user_id = ? AND status = 1", userID).
+		Find(&list).Error
+	return list, err
 }
 
 func (r *repo) FindByID(ctx context.Context, id uint64) (*entity.Advertiser, error) {

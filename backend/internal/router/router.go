@@ -69,7 +69,7 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 	oauthService := oauthsvc.New(platformClients, tokenRepo, advRepo, syncService, rdb, cfg.App.EncryptKey, log)
 
 	// B5: 广告主账号
-	advertiserService := advertisersvc.New(advRepo, tokenRepo, platformClients, syncService, cfg.App.EncryptKey)
+	advertiserService := advertisersvc.New(advRepo, tokenRepo, platformClients, syncService, cfg.App.EncryptKey, log)
 
 	// B6: 推广系列
 	campaignService := campaignsvc.New(campRepo, advRepo, tokenRepo, logRepo, platformClients, cfg.App.EncryptKey, log)
@@ -131,6 +131,7 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 		advGroup := protected.Group("/advertisers")
 		{
 			advGroup.GET("", advertiserHandler.List)
+			advGroup.POST("/sync", advertiserHandler.SyncAll) // 登录后触发所有广告主后台同步
 			advGroup.GET("/:id/balance", advertiserHandler.Balance)
 			advGroup.POST("/:id/sync", advertiserHandler.Sync)
 

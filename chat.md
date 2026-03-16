@@ -34,5 +34,8 @@
 
 
  curl -s -X POST "http://localhost:8080/api/v1/advertisers/1/sync" \
-    -H "Authorization: Bearer $TOKEN" \
+    -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJlbWFpbCI6Inpob3V5YW5nQHFpbGlhbmdqaWEuY29tIiwiZXhwIjoxNzczNjM0Mjk0LCJpYXQiOjE3NzM2MjcwOTQsImp0aSI6IjY0YjA5Yzk4LTFhYWUtNDk3Mi05NDk3LWFlOThhMzAwYTc5MSJ9.EJW8UNgnQ08AiXKGBgNsQ79LLOZWY3DQHOVzwfxi6d0" \
     -H "Content-Type: application/json"
+
+
+我想在登陆后读取当前授权账号的下的全部 系列，广告组，广告，另外从数据上看 获取token时，并没有open_user_id

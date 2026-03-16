@@ -29,7 +29,20 @@ final class APIClient {
         encoder = JSONEncoder()
 
         decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        // Go 的 time.Time 序列化带微秒（如 2026-03-13T12:23:58.488703+08:00）
+        // Swift 默认 .iso8601 不支持小数秒，需自定义解码策略
+        let isoFull = ISO8601DateFormatter()
+        isoFull.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let isoBasic = ISO8601DateFormatter()
+        isoBasic.formatOptions = [.withInternetDateTime]
+        decoder.dateDecodingStrategy = .custom { dec in
+            let str = try dec.singleValueContainer().decode(String.self)
+            if let d = isoFull.date(from: str)  { return d }
+            if let d = isoBasic.date(from: str) { return d }
+            throw DecodingError.dataCorruptedError(
+                in: try dec.singleValueContainer(),
+                debugDescription: "无法解析日期：\(str)")
+        }
     }
 
     // MARK: - 标准请求（返回单条数据）
@@ -119,6 +132,16 @@ final class APIClient {
     // MARK: - 私有：执行请求
 
     private func perform(_ req: URLRequest) async throws -> Data {
+        #if DEBUG
+        let method = req.httpMethod ?? "GET"
+        let url    = req.url?.absoluteString ?? ""
+        if let body = req.httpBody, let bodyStr = String(data: body, encoding: .utf8) {
+            print("➡️ \(method) \(url)\n   Body: \(bodyStr)")
+        } else {
+            print("➡️ \(method) \(url)")
+        }
+        #endif
+
         let data: Data
         let response: URLResponse
         do {
@@ -126,6 +149,12 @@ final class APIClient {
         } catch {
             throw APIError.networkError(error)
         }
+
+        #if DEBUG
+        let status  = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let respStr = String(data: data, encoding: .utf8) ?? "<binary>"
+        print("⬅️ \(status) \(url)\n   Body: \(respStr)")
+        #endif
 
         if let http = response as? HTTPURLResponse, http.statusCode == 401 {
             onUnauthorized?()

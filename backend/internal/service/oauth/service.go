@@ -133,6 +133,16 @@ func (s *service) Callback(ctx context.Context, userID uint64, platformName, cod
 	if err := s.tokenRepo.Upsert(ctx, platformToken); err != nil {
 		return nil, fmt.Errorf("save token: %w", err)
 	}
+	// MySQL ON DUPLICATE KEY UPDATE 不返回已有行的 ID，需要重新查询确保 ID 正确
+	if platformToken.ID == 0 {
+		existing, err := s.tokenRepo.FindByUniqueKey(ctx, userID, platformName, tokenResult.OpenUserID)
+		if err != nil {
+			return nil, fmt.Errorf("reload token: %w", err)
+		}
+		if existing != nil {
+			platformToken.ID = existing.ID
+		}
+	}
 
 	// 4. 拉取广告主并同步入库
 	advertisers, err := client.GetAdvertisers(tokenResult.AccessToken)

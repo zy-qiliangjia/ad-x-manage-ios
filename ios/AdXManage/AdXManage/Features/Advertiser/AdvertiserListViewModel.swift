@@ -29,6 +29,7 @@ final class AdvertiserListViewModel: ObservableObject {
     private var page     = 1
     private let pageSize = 20
     private var searchTask: Task<Void, Never>? = nil
+    private var hasSyncedOnce = false
 
     // MARK: - 初始加载
 
@@ -37,6 +38,13 @@ final class AdvertiserListViewModel: ObservableObject {
         isLoading = true
         error     = nil
         page      = 1
+
+        // 登录后第一次加载时触发全量后台同步（fire-and-forget）
+        if !hasSyncedOnce {
+            hasSyncedOnce = true
+            Task { try? await service.syncAll() }
+        }
+
         do {
             let (fetched, pagination) = try await fetch(page: 1)
             items   = fetched

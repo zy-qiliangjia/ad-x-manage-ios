@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
+	"go.uber.org/zap"
 
 	"ad-x-manage/backend/internal/model/dto"
 	"ad-x-manage/backend/internal/model/entity"
@@ -23,6 +26,8 @@ type Service interface {
 	List(ctx context.Context, userID uint64, req *dto.AdvertiserListRequest) ([]*dto.AdvertiserListItem, int64, error)
 	GetBalance(ctx context.Context, userID, advertiserID uint64) (*dto.BalanceResponse, error)
 	Sync(ctx context.Context, userID, advertiserID uint64) (*dto.SyncResponse, error)
+	// SyncAll 对当前用户所有有效广告主触发后台全量同步，立即返回广告主数量。
+	SyncAll(ctx context.Context, userID uint64) (int, error)
 }
 
 type service struct {
@@ -31,6 +36,7 @@ type service struct {
 	clients    map[string]platform.Client
 	syncSvc    syncsvc.Service
 	encryptKey string
+	log        *zap.Logger
 }
 
 func New(
@@ -39,6 +45,7 @@ func New(
 	clients map[string]platform.Client,
 	syncSvc syncsvc.Service,
 	encryptKey string,
+	log *zap.Logger,
 ) Service {
 	return &service{
 		advRepo:    advRepo,
@@ -46,6 +53,7 @@ func New(
 		clients:    clients,
 		syncSvc:    syncSvc,
 		encryptKey: encryptKey,
+		log:        log,
 	}
 }
 
@@ -119,6 +127,29 @@ func (s *service) Sync(ctx context.Context, userID, advertiserID uint64) (*dto.S
 		Duration:      result.Duration.String(),
 		Errors:        result.Errors,
 	}, nil
+}
+
+// SyncAll 对当前用户所有有效广告主在后台触发全量同步，立即返回广告主数量（异步，不等待结果）。
+func (s *service) SyncAll(ctx context.Context, userID uint64) (int, error) {
+	advs, err := s.advRepo.FindAllActiveByUserID(ctx, userID)
+	if err != nil {
+		return 0, fmt.Errorf("query advertisers: %w", err)
+	}
+	for _, adv := range advs {
+		adv := adv
+		go func() {
+			bgCtx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+			defer cancel()
+			if _, err := s.syncSvc.SyncAdvertiser(bgCtx, adv); err != nil {
+				s.log.Warn("SyncAll background sync failed",
+					zap.Uint64("advertiser_id", adv.ID),
+					zap.String("platform", adv.Platform),
+					zap.Error(err),
+				)
+			}
+		}()
+	}
+	return len(advs), nil
 }
 
 // ── 工具方法 ───────────────────────────────────────────────────

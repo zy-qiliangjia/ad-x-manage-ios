@@ -87,9 +87,15 @@ func (c *Client) ExchangeToken(code string) (*platform.TokenResult, error) {
 	if resp.Code != 0 {
 		return nil, fmt.Errorf("tiktok exchange token error %d: %s", resp.Code, resp.Message)
 	}
+	// TikTok Business API 的 open_id 在部分场景（沙盒/商业账号）为空，
+	// 用 app_id 作兜底，保证唯一键 (user_id, platform, open_user_id) 稳定。
+	openID := resp.Data.OpenID
+	if openID == "" {
+		openID = c.appID
+	}
 	now := time.Now()
 	return &platform.TokenResult{
-		OpenUserID:          resp.Data.OpenID,
+		OpenUserID:          openID,
 		AccessToken:         resp.Data.AccessToken,
 		RefreshToken:        resp.Data.RefreshToken,
 		ExpiresAt:           now.Add(time.Duration(resp.Data.ExpiresIn) * time.Second),

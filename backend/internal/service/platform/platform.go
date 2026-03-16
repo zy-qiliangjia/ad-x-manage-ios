@@ -18,6 +18,8 @@ type Client interface {
 	// ── 广告主 ─────────────────────────────────────────────
 	// GetAdvertisers 拉取该 token 下所有广告主账号
 	GetAdvertisers(accessToken string) ([]*AdvertiserInfo, error)
+	// GetAdvertiserInfo 批量查询广告主详情（currency、timezone 等字段）
+	GetAdvertiserInfo(accessToken string, advertiserIDs []string) ([]*AdvertiserInfo, error)
 	// GetBalance 实时查询广告主账户余额
 	GetBalance(accessToken, advertiserID string) (*BalanceInfo, error)
 

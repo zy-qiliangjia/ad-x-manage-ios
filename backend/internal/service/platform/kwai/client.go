@@ -152,6 +152,27 @@ func (c *Client) GetAdvertisers(accessToken string) ([]*platform.AdvertiserInfo,
 	return result, nil
 }
 
+// GetAdvertiserInfo 查询广告主详情（currency、timezone）。
+// Kwai GetAdvertisers 已包含这些字段，此处按 ID 批量过滤返回。
+func (c *Client) GetAdvertiserInfo(accessToken string, advertiserIDs []string) ([]*platform.AdvertiserInfo, error) {
+	// Kwai 的 advertiser/list 接口已包含 currency/timezone，直接复用
+	all, err := c.GetAdvertisers(accessToken)
+	if err != nil {
+		return nil, err
+	}
+	need := make(map[string]bool, len(advertiserIDs))
+	for _, id := range advertiserIDs {
+		need[id] = true
+	}
+	result := make([]*platform.AdvertiserInfo, 0, len(advertiserIDs))
+	for _, a := range all {
+		if need[a.AdvertiserID] {
+			result = append(result, a)
+		}
+	}
+	return result, nil
+}
+
 // GetBalance 查询广告主余额。
 func (c *Client) GetBalance(accessToken, advertiserID string) (*platform.BalanceInfo, error) {
 	params := url.Values{}

@@ -180,6 +180,45 @@ func (c *Client) GetAdvertisers(accessToken string) ([]*platform.AdvertiserInfo,
 	return result, nil
 }
 
+// GetAdvertiserInfo 批量查询广告主详情（currency、timezone）。
+// 文档：https://business-api.tiktok.com/portal/docs?id=1739593083610113
+func (c *Client) GetAdvertiserInfo(accessToken string, advertiserIDs []string) ([]*platform.AdvertiserInfo, error) {
+	idsJSON, _ := json.Marshal(advertiserIDs)
+	fieldsJSON, _ := json.Marshal([]string{"advertiser_id", "name", "currency", "timezone"})
+	params := url.Values{}
+	params.Set("advertiser_ids", string(idsJSON))
+	params.Set("fields", string(fieldsJSON))
+
+	var resp struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			List []struct {
+				AdvertiserID string `json:"advertiser_id"`
+				Name         string `json:"name"`
+				Currency     string `json:"currency"`
+				Timezone     string `json:"timezone"`
+			} `json:"list"`
+		} `json:"data"`
+	}
+	if err := c.get("/open_api/"+apiVersion+"/advertiser/info/", params, accessToken, &resp); err != nil {
+		return nil, err
+	}
+	if resp.Code != 0 {
+		return nil, fmt.Errorf("tiktok get advertiser info error %d: %s", resp.Code, resp.Message)
+	}
+	result := make([]*platform.AdvertiserInfo, 0, len(resp.Data.List))
+	for _, item := range resp.Data.List {
+		result = append(result, &platform.AdvertiserInfo{
+			AdvertiserID:   item.AdvertiserID,
+			AdvertiserName: item.Name,
+			Currency:       item.Currency,
+			Timezone:       item.Timezone,
+		})
+	}
+	return result, nil
+}
+
 // GetBalance 实时查询广告主余额。
 func (c *Client) GetBalance(accessToken, advertiserID string) (*platform.BalanceInfo, error) {
 	params := url.Values{}

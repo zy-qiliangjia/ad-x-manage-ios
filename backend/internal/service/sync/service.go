@@ -84,7 +84,22 @@ func (s *service) SyncAdvertiser(ctx context.Context, adv *entity.Advertiser) (*
 		return nil, fmt.Errorf("unsupported platform: %s", adv.Platform)
 	}
 
-	// 2. 同步推广系列
+	// 2. 补全广告主 currency / timezone（首次同步时可能为空）
+	if adv.Currency == "" || adv.Timezone == "" {
+		if infos, err := client.GetAdvertiserInfo(accessToken, []string{adv.AdvertiserID}); err == nil && len(infos) > 0 {
+			info := infos[0]
+			if info.Currency != "" || info.Timezone != "" {
+				if err := s.advRepo.UpdateInfo(ctx, adv.ID, info.Currency, info.Timezone); err != nil {
+					s.log.Warn("update advertiser info failed", zap.Uint64("advertiser_id", adv.ID), zap.Error(err))
+				} else {
+					adv.Currency = info.Currency
+					adv.Timezone = info.Timezone
+				}
+			}
+		}
+	}
+
+	// 3. 同步推广系列
 	campCount, errs := s.syncCampaigns(ctx, client, adv, accessToken)
 	result.CampaignCount = campCount
 	result.Errors = append(result.Errors, errs...)

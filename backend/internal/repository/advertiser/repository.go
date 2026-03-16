@@ -18,6 +18,7 @@ type Repository interface {
 	FindByID(ctx context.Context, id uint64) (*entity.Advertiser, error)
 	FindByPlatformID(ctx context.Context, platform, advertiserID string) (*entity.Advertiser, error)
 	UpdateSyncedAt(ctx context.Context, id uint64, t time.Time) error
+	UpdateInfo(ctx context.Context, id uint64, currency, timezone string) error
 	RevokeByTokenID(ctx context.Context, tokenID uint64) error
 }
 
@@ -102,6 +103,16 @@ func (r *repo) UpdateSyncedAt(ctx context.Context, id uint64, t time.Time) error
 		Model(&entity.Advertiser{}).
 		Where("id = ?", id).
 		Update("synced_at", t).Error
+}
+
+func (r *repo) UpdateInfo(ctx context.Context, id uint64, currency, timezone string) error {
+	return r.db.WithContext(ctx).
+		Model(&entity.Advertiser{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"currency": currency,
+			"timezone": timezone,
+		}).Error
 }
 
 // RevokeByTokenID 解绑时将该 token 下所有广告主标记为停用。

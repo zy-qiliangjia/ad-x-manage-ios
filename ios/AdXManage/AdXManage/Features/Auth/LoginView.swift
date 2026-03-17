@@ -30,9 +30,11 @@ struct LoginView: View {
                             .keyboardType(.emailAddress)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+                            .textContentType(.emailAddress)
                             .textFieldStyle(.roundedBorder)
 
                         SecureField("密码（至少 8 位）", text: $vm.password)
+                            .textContentType(.oneTimeCode)
                             .textFieldStyle(.roundedBorder)
                             .onSubmit {
                                 Task { await vm.login(appState: appState) }

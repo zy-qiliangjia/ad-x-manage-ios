@@ -16,17 +16,21 @@ final class AdGroupListViewModel: ObservableObject {
     @Published var updatingStatusID: UInt64?       = nil
 
     private let advertiserID: UInt64
+    private let campaignID: UInt64
     private let service = AdDetailService.shared
     private var page     = 1
     private let pageSize = 20
 
-    init(advertiserID: UInt64) { self.advertiserID = advertiserID }
+    init(advertiserID: UInt64, campaignID: UInt64 = 0) {
+        self.advertiserID = advertiserID
+        self.campaignID   = campaignID
+    }
 
     func load() async {
         guard !isLoading else { return }
         isLoading = true; error = nil; page = 1
         do {
-            let (fetched, pagination) = try await service.adGroups(advertiserID: advertiserID, page: 1)
+            let (fetched, pagination) = try await service.adGroups(advertiserID: advertiserID, campaignID: campaignID, page: 1)
             items   = fetched
             hasMore = pagination.hasMore
             page    = 2
@@ -37,7 +41,7 @@ final class AdGroupListViewModel: ObservableObject {
     func refresh() async {
         page = 1; error = nil
         do {
-            let (fetched, pagination) = try await service.adGroups(advertiserID: advertiserID, page: 1)
+            let (fetched, pagination) = try await service.adGroups(advertiserID: advertiserID, campaignID: campaignID, page: 1)
             items   = fetched
             hasMore = pagination.hasMore
             page    = 2
@@ -48,7 +52,7 @@ final class AdGroupListViewModel: ObservableObject {
         guard hasMore, !isLoadingMore else { return }
         isLoadingMore = true
         do {
-            let (fetched, pagination) = try await service.adGroups(advertiserID: advertiserID, page: page)
+            let (fetched, pagination) = try await service.adGroups(advertiserID: advertiserID, campaignID: campaignID, page: page)
             items  += fetched
             hasMore = pagination.hasMore
             page   += 1
@@ -84,9 +88,9 @@ struct AdGroupListView: View {
     let advertiser: AdvertiserListItem
     @StateObject private var vm: AdGroupListViewModel
 
-    init(advertiser: AdvertiserListItem) {
+    init(advertiser: AdvertiserListItem, campaignID: UInt64 = 0) {
         self.advertiser = advertiser
-        _vm = StateObject(wrappedValue: AdGroupListViewModel(advertiserID: advertiser.id))
+        _vm = StateObject(wrappedValue: AdGroupListViewModel(advertiserID: advertiser.id, campaignID: campaignID))
     }
 
     var body: some View {

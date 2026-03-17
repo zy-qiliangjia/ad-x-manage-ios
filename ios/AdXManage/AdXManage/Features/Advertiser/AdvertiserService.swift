@@ -42,4 +42,16 @@ final class AdvertiserService {
     func syncAll() async throws {
         try await client.requestVoid(.advertiserSyncAll)
     }
+
+    // MARK: - 修改预算
+
+    func updateBudget(id: UInt64, budget: Double) async throws {
+        try await client.requestVoid(.advertiserBudget(id: Int(id)), body: UpdateBudgetBody(budget: budget))
+    }
+
+    // MARK: - 修改状态
+
+    func updateStatus(id: UInt64, action: String) async throws {
+        try await client.requestVoid(.advertiserStatus(id: Int(id)), body: UpdateStatusBody(action: action))
+    }
 }

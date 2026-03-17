@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - 推广系列
 
-struct CampaignItem: Decodable, Identifiable {
+struct CampaignItem: Decodable, Identifiable, Hashable {
     let id: UInt64
     let campaignID: String
     let campaignName: String
@@ -11,22 +11,43 @@ struct CampaignItem: Decodable, Identifiable {
     let budget: Double
     let spend: Double
     let objective: String
+    let advertiserID: UInt64
+    let advertiserName: String
+    let platform: String
 
     enum CodingKeys: String, CodingKey {
         case id
-        case campaignID   = "campaign_id"
-        case campaignName = "campaign_name"
+        case campaignID    = "campaign_id"
+        case campaignName  = "campaign_name"
         case status
-        case budgetMode   = "budget_mode"
+        case budgetMode    = "budget_mode"
         case budget
         case spend
         case objective
+        case advertiserID  = "advertiser_id"
+        case advertiserName = "advertiser_name"
+        case platform
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id             = try c.decode(UInt64.self, forKey: .id)
+        campaignID     = try c.decode(String.self, forKey: .campaignID)
+        campaignName   = try c.decode(String.self, forKey: .campaignName)
+        status         = try c.decode(String.self, forKey: .status)
+        budgetMode     = (try? c.decodeIfPresent(String.self, forKey: .budgetMode)) ?? ""
+        budget         = (try? c.decodeIfPresent(Double.self, forKey: .budget))     ?? 0
+        spend          = (try? c.decodeIfPresent(Double.self, forKey: .spend))      ?? 0
+        objective      = (try? c.decodeIfPresent(String.self, forKey: .objective))  ?? ""
+        advertiserID   = (try? c.decodeIfPresent(UInt64.self, forKey: .advertiserID))   ?? 0
+        advertiserName = (try? c.decodeIfPresent(String.self, forKey: .advertiserName)) ?? ""
+        platform       = (try? c.decodeIfPresent(String.self, forKey: .platform))       ?? ""
     }
 }
 
 // MARK: - 广告组
 
-struct AdGroupItem: Decodable, Identifiable {
+struct AdGroupItem: Decodable, Identifiable, Hashable {
     let id: UInt64
     let adgroupID: String
     let adgroupName: String
@@ -37,18 +58,41 @@ struct AdGroupItem: Decodable, Identifiable {
     let spend: Double
     let bidType: String
     let bidPrice: Double
+    let advertiserID: UInt64
+    let advertiserName: String
+    let platform: String
 
     enum CodingKeys: String, CodingKey {
         case id
-        case adgroupID   = "adgroup_id"
-        case adgroupName = "adgroup_name"
-        case campaignID  = "campaign_id"
+        case adgroupID    = "adgroup_id"
+        case adgroupName  = "adgroup_name"
+        case campaignID   = "campaign_id"
         case status
-        case budgetMode  = "budget_mode"
+        case budgetMode   = "budget_mode"
         case budget
         case spend
-        case bidType     = "bid_type"
-        case bidPrice    = "bid_price"
+        case bidType      = "bid_type"
+        case bidPrice     = "bid_price"
+        case advertiserID  = "advertiser_id"
+        case advertiserName = "advertiser_name"
+        case platform
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id             = try c.decode(UInt64.self, forKey: .id)
+        adgroupID      = try c.decode(String.self, forKey: .adgroupID)
+        adgroupName    = try c.decode(String.self, forKey: .adgroupName)
+        campaignID     = try c.decode(UInt64.self, forKey: .campaignID)
+        status         = try c.decode(String.self, forKey: .status)
+        budgetMode     = (try? c.decodeIfPresent(String.self, forKey: .budgetMode)) ?? ""
+        budget         = (try? c.decodeIfPresent(Double.self, forKey: .budget))     ?? 0
+        spend          = (try? c.decodeIfPresent(Double.self, forKey: .spend))      ?? 0
+        bidType        = (try? c.decodeIfPresent(String.self, forKey: .bidType))    ?? ""
+        bidPrice       = (try? c.decodeIfPresent(Double.self, forKey: .bidPrice))   ?? 0
+        advertiserID   = (try? c.decodeIfPresent(UInt64.self, forKey: .advertiserID))   ?? 0
+        advertiserName = (try? c.decodeIfPresent(String.self, forKey: .advertiserName)) ?? ""
+        platform       = (try? c.decodeIfPresent(String.self, forKey: .platform))       ?? ""
     }
 }
 

@@ -1,7 +1,7 @@
 import SwiftUI
 
 // MARK: - ContentView
-// 根视图：登录前 → LoginView；登录后 → AdvertiserListView（I5）。
+// 根视图：登录前 → LoginView；登录后 → MainTabView。
 
 struct ContentView: View {
 
@@ -10,7 +10,7 @@ struct ContentView: View {
     var body: some View {
         Group {
             if appState.isLoggedIn {
-                AdvertiserListView()
+                MainTabView()
             } else {
                 LoginView()
             }

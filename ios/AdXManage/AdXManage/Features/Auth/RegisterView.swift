@@ -20,12 +20,15 @@ struct RegisterView: View {
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                        .textContentType(.emailAddress)
                 }
 
                 Section("密码") {
                     SecureField("密码（至少 8 位）", text: $vm.regPassword)
+                        .textContentType(.oneTimeCode)
 
                     SecureField("确认密码", text: $vm.regPasswordConfirm)
+                        .textContentType(.oneTimeCode)
 
                     if vm.registerPasswordMismatch {
                         Label("两次密码不一致", systemImage: "exclamationmark.triangle.fill")

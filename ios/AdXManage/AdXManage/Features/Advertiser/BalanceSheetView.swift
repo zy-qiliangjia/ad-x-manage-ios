@@ -58,7 +58,8 @@ struct BalanceSheetView: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.height(260)])
+        .presentationDragIndicator(.visible)
         .task { await fetchBalance() }
     }
 

@@ -14,19 +14,23 @@ final class AdListViewModel: ObservableObject {
     @Published var searchText = "" { didSet { scheduleSearch() } }
 
     private let advertiserID: UInt64
+    private let adgroupID: UInt64
     private let service = AdDetailService.shared
     private var page     = 1
     private let pageSize = 20
     private var searchTask: Task<Void, Never>? = nil
 
-    init(advertiserID: UInt64) { self.advertiserID = advertiserID }
+    init(advertiserID: UInt64, adgroupID: UInt64 = 0) {
+        self.advertiserID = advertiserID
+        self.adgroupID    = adgroupID
+    }
 
     func load() async {
         guard !isLoading else { return }
         isLoading = true; error = nil; page = 1
         do {
             let (fetched, pagination) = try await service.ads(
-                advertiserID: advertiserID, keyword: searchText, page: 1)
+                advertiserID: advertiserID, adgroupID: adgroupID, keyword: searchText, page: 1)
             items   = fetched
             hasMore = pagination.hasMore
             page    = 2
@@ -38,7 +42,7 @@ final class AdListViewModel: ObservableObject {
         page = 1; error = nil
         do {
             let (fetched, pagination) = try await service.ads(
-                advertiserID: advertiserID, keyword: searchText, page: 1)
+                advertiserID: advertiserID, adgroupID: adgroupID, keyword: searchText, page: 1)
             items   = fetched
             hasMore = pagination.hasMore
             page    = 2
@@ -50,7 +54,7 @@ final class AdListViewModel: ObservableObject {
         isLoadingMore = true
         do {
             let (fetched, pagination) = try await service.ads(
-                advertiserID: advertiserID, keyword: searchText, page: page)
+                advertiserID: advertiserID, adgroupID: adgroupID, keyword: searchText, page: page)
             items  += fetched
             hasMore = pagination.hasMore
             page   += 1
@@ -79,9 +83,9 @@ struct AdListView: View {
     let advertiser: AdvertiserListItem
     @StateObject private var vm: AdListViewModel
 
-    init(advertiser: AdvertiserListItem) {
+    init(advertiser: AdvertiserListItem, adgroupID: UInt64 = 0) {
         self.advertiser = advertiser
-        _vm = StateObject(wrappedValue: AdListViewModel(advertiserID: advertiser.id))
+        _vm = StateObject(wrappedValue: AdListViewModel(advertiserID: advertiser.id, adgroupID: adgroupID))
     }
 
     var body: some View {

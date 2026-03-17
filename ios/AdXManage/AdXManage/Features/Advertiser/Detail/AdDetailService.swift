@@ -49,6 +49,32 @@ final class AdDetailService {
         try await client.requestVoid(.adGroupStatus(id: Int(id)), body: UpdateStatusBody(action: action))
     }
 
+    // MARK: - 全量查询（跨账号）
+
+    func allCampaigns(platform: String? = nil, keyword: String = "", page: Int, pageSize: Int = 20)
+    async throws -> (items: [CampaignItem], pagination: APIPagination) {
+        var params: [String: String] = ["page": "\(page)", "page_size": "\(pageSize)"]
+        if let p = platform, !p.isEmpty { params["platform"] = p }
+        if !keyword.isEmpty { params["keyword"] = keyword }
+        return try await client.requestPage(.allCampaigns, queryParams: params)
+    }
+
+    func allAdGroups(platform: String? = nil, keyword: String = "", page: Int, pageSize: Int = 20)
+    async throws -> (items: [AdGroupItem], pagination: APIPagination) {
+        var params: [String: String] = ["page": "\(page)", "page_size": "\(pageSize)"]
+        if let p = platform, !p.isEmpty { params["platform"] = p }
+        if !keyword.isEmpty { params["keyword"] = keyword }
+        return try await client.requestPage(.allAdGroups, queryParams: params)
+    }
+
+    func allAds(platform: String? = nil, keyword: String = "", page: Int, pageSize: Int = 20)
+    async throws -> (items: [AdItem], pagination: APIPagination) {
+        var params: [String: String] = ["page": "\(page)", "page_size": "\(pageSize)"]
+        if let p = platform, !p.isEmpty { params["platform"] = p }
+        if !keyword.isEmpty { params["keyword"] = keyword }
+        return try await client.requestPage(.allAds, queryParams: params)
+    }
+
     // MARK: - 操作日志
 
     func operationLogs(advertiserID: UInt64, page: Int, pageSize: Int = 20)

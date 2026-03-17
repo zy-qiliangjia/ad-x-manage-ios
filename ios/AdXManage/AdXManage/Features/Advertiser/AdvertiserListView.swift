@@ -4,11 +4,11 @@ import SwiftUI
 
 struct AdvertiserListView: View {
 
-    @EnvironmentObject private var appState: AppState
     @StateObject private var vm       = AdvertiserListViewModel()
     @StateObject private var oauthVM  = OAuthViewModel()
 
-    @State private var showPlatformSelection  = false
+    @State private var showAddSheet          = false
+    @State private var showPlatformSelection = false
     @State private var balanceTarget: AdvertiserListItem? = nil
 
     var body: some View {
@@ -17,38 +17,43 @@ struct AdvertiserListView: View {
                 if vm.isLoading && vm.items.isEmpty {
                     ProgressView("加载中…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if vm.items.isEmpty && !vm.isLoading {
-                    emptyState
                 } else {
-                    list
+                    scrollContent
                 }
             }
+            .background(AppTheme.Colors.background)
             .navigationTitle("广告账号")
+            .navigationBarTitleDisplayMode(.large)
             .toolbar { toolbarContent }
-            // 平台筛选
+            .searchable(text: $vm.searchText,
+                        placement: .navigationBarDrawer(displayMode: .always),
+                        prompt: "搜索账号名称或 ID")
             .safeAreaInset(edge: .top) { platformPicker }
-            // 搜索
-            .searchable(text: $vm.searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索账号名称或 ID")
-            // 错误提示
             .alert("请求失败", isPresented: Binding(
                 get: { vm.error != nil },
                 set: { if !$0 { vm.error = nil } }
             )) {
                 Button("确定", role: .cancel) { vm.error = nil }
-            } message: {
-                Text(vm.error ?? "")
-            }
-            // 同步结果提示
+            } message: { Text(vm.error ?? "") }
             .sheet(item: $vm.syncResult) { result in
                 SyncResultSheet(result: result.response)
             }
-            // I3：平台选择
+            // 添加账号 Bottom Sheet
+            .sheet(isPresented: $showAddSheet) {
+                AddAccountSheet {
+                    showAddSheet = false
+                    showPlatformSelection = true
+                }
+                .presentationDetents([.height(280)])
+                .presentationDragIndicator(.visible)
+            }
+            // 平台选择
             .sheet(isPresented: $showPlatformSelection) {
                 PlatformSelectionView { platform in
                     oauthVM.authorize(platform: platform)
                 }
             }
-            // I4：OAuth 进度
+            // OAuth 进度
             .sheet(isPresented: $oauthVM.isPresented) {
                 OAuthProgressView(vm: oauthVM) { _ in
                     Task { await vm.onOAuthSuccess() }
@@ -62,52 +67,81 @@ struct AdvertiserListView: View {
         .task { await vm.load() }
     }
 
-    // MARK: - 列表
+    // MARK: - Scroll Content
 
-    private var list: some View {
-        List {
-            ForEach(vm.items) { adv in
-                NavigationLink(destination: AdvertiserDetailView(advertiser: adv)) {
-                    AdvertiserRow(
-                        advertiser: adv,
-                        isSyncing: vm.syncingID == adv.id
-                    )
-                }
-                .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                    Button {
-                        balanceTarget = adv
-                    } label: {
-                        Label("余额", systemImage: "dollarsign.circle")
+    private var scrollContent: some View {
+        ScrollView {
+            LazyVStack(spacing: AppTheme.Spacing.md) {
+                if vm.items.isEmpty && !vm.isLoading {
+                    emptyState
+                        .padding(.top, 60)
+                } else {
+                    ForEach(vm.items) { adv in
+                        NavigationLink(destination: AdvertiserDetailView(advertiser: adv)) {
+                            AdvertiserCardView(
+                                advertiser: adv,
+                                isSyncing: vm.syncingID == adv.id
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            Button {
+                                balanceTarget = adv
+                            } label: {
+                                Label("查看余额", systemImage: "dollarsign.circle")
+                            }
+                            Button {
+                                Task { await vm.sync(advertiser: adv) }
+                            } label: {
+                                Label("手动同步", systemImage: "arrow.triangle.2.circlepath")
+                            }
+                        }
+                        // 保留左滑/右滑（包装在 List 外时用 swipeActions 需要 List，改用 onLongPress 替代）
+                        .onAppear {
+                            if adv.id == vm.items.last?.id {
+                                Task { await vm.loadMore() }
+                            }
+                        }
                     }
-                    .tint(.blue)
-                }
-                .swipeActions(edge: .trailing) {
-                    Button {
-                        Task { await vm.sync(advertiser: adv) }
-                    } label: {
-                        Label("同步", systemImage: "arrow.triangle.2.circlepath")
-                    }
-                    .tint(.orange)
-                }
-                // 滚动到底部时加载更多
-                .onAppear {
-                    if adv.id == vm.items.last?.id {
-                        Task { await vm.loadMore() }
-                    }
-                }
-            }
 
-            if vm.isLoadingMore {
-                HStack {
-                    Spacer()
-                    ProgressView()
-                    Spacer()
+                    if vm.isLoadingMore {
+                        ProgressView().padding()
+                    }
                 }
-                .listRowSeparator(.hidden)
+
+                // 虚线添加按钮
+                addAccountButton
+                    .padding(.horizontal, AppTheme.Spacing.xl)
             }
+            .padding(.horizontal, AppTheme.Spacing.xl)
+            .padding(.top, AppTheme.Spacing.md)
+            .padding(.bottom, AppTheme.Spacing.xl)
         }
-        .listStyle(.plain)
         .refreshable { await vm.refresh() }
+    }
+
+    // MARK: - 虚线添加按钮
+
+    private var addAccountButton: some View {
+        Button {
+            showAddSheet = true
+        } label: {
+            HStack(spacing: AppTheme.Spacing.sm) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(AppTheme.Colors.primary)
+                Text("授权添加新广告账号")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, AppTheme.Spacing.lg)
+            .background(
+                RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
+                    .stroke(AppTheme.Colors.border, style: StrokeStyle(lineWidth: 1.5, dash: [6]))
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - 平台筛选条
@@ -120,124 +154,200 @@ struct AdvertiserListView: View {
             }
         }
         .pickerStyle(.segmented)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.vertical, AppTheme.Spacing.sm)
         .background(.bar)
     }
 
     // MARK: - 空状态
 
     private var emptyState: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: AppTheme.Spacing.lg) {
             Image(systemName: "person.crop.rectangle.stack")
                 .font(.system(size: 52))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(AppTheme.Colors.textSecondary.opacity(0.5))
             VStack(spacing: 6) {
                 Text(vm.searchText.isEmpty ? "暂无广告账号" : "没有匹配的账号")
                     .font(.headline)
-                Text(vm.searchText.isEmpty ? "点击右上角 + 添加平台账号" : "尝试修改搜索关键词")
+                    .foregroundStyle(AppTheme.Colors.textPrimary)
+                Text(vm.searchText.isEmpty ? "点击右上角 + 或下方按钮添加平台账号" : "尝试修改搜索关键词")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            if vm.searchText.isEmpty {
-                Button {
-                    showPlatformSelection = true
-                } label: {
-                    Label("添加平台账号", systemImage: "plus.circle.fill")
-                }
-                .buttonStyle(.borderedProminent)
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                    .multilineTextAlignment(.center)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .frame(maxWidth: .infinity)
     }
 
     // MARK: - Toolbar
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            Button("登出", role: .destructive) {
-                Task {
-                    try? await AuthService.shared.logout()
-                    appState.logout()
-                }
-            }
-            .font(.footnote)
-        }
         ToolbarItem(placement: .topBarTrailing) {
-            Button { showPlatformSelection = true } label: {
+            Button { showAddSheet = true } label: {
                 Image(systemName: "plus")
                     .fontWeight(.semibold)
             }
         }
     }
-
 }
 
-// MARK: - AdvertiserRow
+// MARK: - AdvertiserCardView
 
-private struct AdvertiserRow: View {
-
+struct AdvertiserCardView: View {
     let advertiser: AdvertiserListItem
     let isSyncing: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // 第一行：平台 badge + 账号名
-            HStack(spacing: 8) {
-                if let platform = advertiser.platformEnum {
-                    PlatformBadge(platform: platform)
+        VStack(spacing: 0) {
+            // 顶部：头像 + 账号信息
+            HStack(spacing: AppTheme.Spacing.md) {
+                // TikTok 头像
+                platformAvatar
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(advertiser.advertiserName)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(AppTheme.Colors.textPrimary)
+                        .lineLimit(1)
+                    Text("ID: \(advertiser.advertiserID.truncatedID)")
+                        .font(.system(size: 12))
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
+                    AdvertiserStatusBadgeView(AdvertiserStatus(isActive: advertiser.isActive))
+                        .padding(.top, 2)
                 }
-                Text(advertiser.advertiserName)
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
+
                 Spacer()
-                statusBadge
-            }
-            // 第二行：账号 ID + 货币
-            HStack(spacing: 12) {
-                Label(advertiser.advertiserID, systemImage: "number")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Label(advertiser.currency, systemImage: "coloncurrencysign.circle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            // 第三行：同步状态
-            HStack(spacing: 4) {
+
+                // 同步状态
                 if isSyncing {
-                    ProgressView().scaleEffect(0.7)
-                    Text("同步中…")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                } else if let syncedAt = advertiser.syncedAt {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                    Text(syncedAt, style: .relative)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                    Text("前同步")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                } else {
-                    Text("从未同步")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                    ProgressView()
+                        .scaleEffect(0.8)
+                } else if advertiser.syncedAt != nil {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 11))
+                            .foregroundStyle(AppTheme.Colors.textSecondary.opacity(0.6))
+                        Text("已同步")
+                            .font(.system(size: 10))
+                            .foregroundStyle(AppTheme.Colors.textSecondary.opacity(0.6))
+                    }
                 }
             }
+            .padding(AppTheme.Spacing.lg)
+
+            // 底部：三列数据行
+            Divider()
+                .padding(.horizontal, AppTheme.Spacing.lg)
+
+            HStack(spacing: 0) {
+                metricCell(label: "本周消耗", value: "--")
+                Divider().frame(height: 32)
+                metricCell(label: "推广系列", value: "--")
+                Divider().frame(height: 32)
+                metricCell(label: "货币", value: advertiser.currency)
+            }
+            .padding(.vertical, AppTheme.Spacing.sm)
         }
-        .padding(.vertical, 4)
+        .background(AppTheme.Colors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xl))
+        .cardShadow()
     }
 
-    private var statusBadge: some View {
-        Text(advertiser.isActive ? "正常" : "已停用")
-            .font(.caption2.weight(.medium))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(advertiser.isActive ? Color.green.opacity(0.12) : Color.red.opacity(0.12))
-            .foregroundStyle(advertiser.isActive ? .green : .red)
-            .clipShape(Capsule())
+    private var platformAvatar: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                .fill(
+                    LinearGradient(
+                        colors: [AppTheme.Colors.tiktokDark, Color(red: 0.2, green: 0.2, blue: 0.2)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 48, height: 48)
+            Text(advertiser.platformEnum == .kwai ? "K" : "T")
+                .font(.system(size: 22, weight: .bold))
+                .foregroundStyle(.white)
+        }
+    }
+
+    private func metricCell(label: String, value: String) -> some View {
+        VStack(spacing: 3) {
+            Text(value)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(AppTheme.Colors.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundStyle(AppTheme.Colors.textSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, AppTheme.Spacing.xs)
+    }
+}
+
+// MARK: - AddAccountSheet
+
+private struct AddAccountSheet: View {
+    let onSelectTikTok: () -> Void
+
+    var body: some View {
+        VStack(spacing: AppTheme.Spacing.lg) {
+            // Handle
+            RoundedRectangle(cornerRadius: 3)
+                .fill(Color.secondary.opacity(0.3))
+                .frame(width: 40, height: 5)
+                .padding(.top, AppTheme.Spacing.md)
+
+            Text("授权添加广告账号")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(AppTheme.Colors.textPrimary)
+
+            // TikTok 选项
+            Button(action: onSelectTikTok) {
+                HStack(spacing: AppTheme.Spacing.md) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                            .fill(
+                                LinearGradient(
+                                    colors: [AppTheme.Colors.tiktokDark,
+                                             Color(red: 0.2, green: 0.2, blue: 0.2)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 48, height: 48)
+                        Text("T")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("TikTok 广告")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(AppTheme.Colors.textPrimary)
+                        Text("通过 TikTok For Business 授权绑定广告账号")
+                            .font(.system(size: 12))
+                            .foregroundStyle(AppTheme.Colors.textSecondary)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(AppTheme.Colors.textSecondary.opacity(0.5))
+                }
+                .padding(AppTheme.Spacing.lg)
+                .background(AppTheme.Colors.background)
+                .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.lg))
+                .overlay(
+                    RoundedRectangle(cornerRadius: AppTheme.Radius.lg)
+                        .stroke(AppTheme.Colors.border, lineWidth: 1.5)
+                )
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, AppTheme.Spacing.lg)
+
+            Spacer()
+        }
     }
 }
 
@@ -256,8 +366,7 @@ private struct SyncResultSheet: View {
                     resultRow("广告",     count: result.adCount,       icon: "photo.fill")
                 }
                 Section("耗时") {
-                    Label(result.duration, systemImage: "timer")
-                        .font(.subheadline)
+                    Label(result.duration, systemImage: "timer").font(.subheadline)
                 }
                 if let errors = result.errors, !errors.isEmpty {
                     Section("警告") {
@@ -284,9 +393,17 @@ private struct SyncResultSheet: View {
         HStack {
             Label(label, systemImage: icon)
             Spacer()
-            Text("\(count) 条")
-                .foregroundStyle(.secondary)
+            Text("\(count) 条").foregroundStyle(.secondary)
         }
         .font(.subheadline)
+    }
+}
+
+// MARK: - String Helper
+
+private extension String {
+    /// 末 6 位加 `…` 前缀；6 位及以下完整显示
+    var truncatedID: String {
+        count > 6 ? "…\(suffix(6))" : self
     }
 }

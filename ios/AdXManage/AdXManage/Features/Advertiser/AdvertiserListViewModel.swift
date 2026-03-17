@@ -122,7 +122,8 @@ final class AdvertiserListViewModel: ObservableObject {
         }
     }
 
-    private func errorMessage(_ error: Error) -> String {
+    private func errorMessage(_ error: Error) -> String? {
+        if error is CancellationError { return nil }
         if let e = error as? APIError { return e.errorDescription ?? error.localizedDescription }
         return error.localizedDescription
     }

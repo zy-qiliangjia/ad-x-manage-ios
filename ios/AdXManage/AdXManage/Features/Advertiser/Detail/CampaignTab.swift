@@ -101,8 +101,9 @@ final class CampaignListViewModel: ObservableObject {
         } catch { self.error = msg(error) }
     }
 
-    private func msg(_ e: Error) -> String {
-        (e as? APIError)?.errorDescription ?? e.localizedDescription
+    private func msg(_ e: Error) -> String? {
+        if e is CancellationError { return nil }
+        return (e as? APIError)?.errorDescription ?? e.localizedDescription
     }
 }
 

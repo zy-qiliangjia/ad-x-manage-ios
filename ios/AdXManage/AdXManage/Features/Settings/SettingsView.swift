@@ -78,17 +78,6 @@ struct SettingsView: View {
             .background(AppTheme.Colors.background)
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
-            .alert("确认退出", isPresented: $showLogoutAlert) {
-                Button("退出", role: .destructive) {
-                    Task {
-                        try? await AuthService.shared.logout()
-                        appState.logout()
-                    }
-                }
-                Button("取消", role: .cancel) {}
-            } message: {
-                Text("确定要退出登录吗？")
-            }
             .sheet(isPresented: $showPlatformSelection) {
                 PlatformSelectionView { platform in
                     oauthVM.authorize(platform: platform)
@@ -97,6 +86,19 @@ struct SettingsView: View {
             .sheet(isPresented: $oauthVM.isPresented) {
                 OAuthProgressView(vm: oauthVM) { _ in }
             }
+        }
+        .alert("确认退出", isPresented: $showLogoutAlert) {
+            Button("退出", role: .destructive) {
+                // Fire-and-forget the server-side blacklist call so it isn't
+                // cancelled when MainTabView unmounts.
+                Task.detached(priority: .background) {
+                    try? await AuthService.shared.logout()
+                }
+                appState.logout()   // synchronous — no Task, no suspend point
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("确定要退出登录吗？")
         }
     }
 

@@ -101,8 +101,9 @@ final class AdGroupListViewModel: ObservableObject {
         } catch { self.error = message(error) }
     }
 
-    private func message(_ e: Error) -> String {
-        (e as? APIError)?.errorDescription ?? e.localizedDescription
+    private func message(_ e: Error) -> String? {
+        if e is CancellationError { return nil }
+        return (e as? APIError)?.errorDescription ?? e.localizedDescription
     }
 }
 

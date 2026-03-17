@@ -29,6 +29,8 @@ final class DashboardViewModel: ObservableObject {
         do {
             overview = try await service.overview(platform: platformFilter?.rawValue)
             lastFetchedAt = Date()
+        } catch is CancellationError {
+            // view teardown — suppress
         } catch {
             self.error = (error as? APIError)?.errorDescription ?? error.localizedDescription
         }

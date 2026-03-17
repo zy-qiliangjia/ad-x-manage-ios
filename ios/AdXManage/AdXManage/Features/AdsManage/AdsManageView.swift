@@ -278,8 +278,9 @@ final class AdsManageListViewModel: ObservableObject {
         }
     }
 
-    private func msg(_ e: Error) -> String {
-        (e as? APIError)?.errorDescription ?? e.localizedDescription
+    private func msg(_ e: Error) -> String? {
+        if e is CancellationError { return nil }
+        return (e as? APIError)?.errorDescription ?? e.localizedDescription
     }
 }
 
@@ -962,7 +963,10 @@ final class AllCampaignsViewModel: ObservableObject {
         isLoadingMore = false
     }
 
-    private func msg(_ e: Error) -> String { (e as? APIError)?.errorDescription ?? e.localizedDescription }
+    private func msg(_ e: Error) -> String? {
+        if e is CancellationError { return nil }
+        return (e as? APIError)?.errorDescription ?? e.localizedDescription
+    }
 }
 
 // MARK: - AllAdGroupsViewModel
@@ -1012,7 +1016,10 @@ final class AllAdGroupsViewModel: ObservableObject {
         isLoadingMore = false
     }
 
-    private func msg(_ e: Error) -> String { (e as? APIError)?.errorDescription ?? e.localizedDescription }
+    private func msg(_ e: Error) -> String? {
+        if e is CancellationError { return nil }
+        return (e as? APIError)?.errorDescription ?? e.localizedDescription
+    }
 }
 
 // MARK: - AllAdsViewModel
@@ -1073,7 +1080,10 @@ final class AllAdsViewModel: ObservableObject {
         }
     }
 
-    private func msg(_ e: Error) -> String { (e as? APIError)?.errorDescription ?? e.localizedDescription }
+    private func msg(_ e: Error) -> String? {
+        if e is CancellationError { return nil }
+        return (e as? APIError)?.errorDescription ?? e.localizedDescription
+    }
 }
 
 // MARK: - AdsAllCampaignsView

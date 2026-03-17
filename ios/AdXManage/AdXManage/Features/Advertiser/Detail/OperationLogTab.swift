@@ -52,8 +52,9 @@ final class OperationLogViewModel: ObservableObject {
         isLoadingMore = false
     }
 
-    private func msg(_ e: Error) -> String {
-        (e as? APIError)?.errorDescription ?? e.localizedDescription
+    private func msg(_ e: Error) -> String? {
+        if e is CancellationError { return nil }
+        return (e as? APIError)?.errorDescription ?? e.localizedDescription
     }
 }
 

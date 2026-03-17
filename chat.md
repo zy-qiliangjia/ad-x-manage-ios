@@ -47,3 +47,16 @@ ios 版帮我调整交互和功能，参考 [text](ad-manager-mobile.html)交互
 
 帮我把 账号 zhouyang@qiliangjia.com 的密码改成 aa123456
 我现在登陆不进去
+
+
+1. 你用 test1@qiliangjia.com 密码：aa123456 注册/登陆测试一下整个流程
+2. 
+
+openspec 
+# 样式和布局功能调整 
+- 参考 /Users/edy/data/project/42-ad-x-manage-ios/ad-manager-mobile.html 交互和功能，对ios 版本进行调整
+- 如果有sql 变更，把相关sql的变更语句记录到 docs/ 文档下
+- 保证功能的实现和交互正常，可以使用 frontend-design skills 进行设计
+- 界面好看点
+- 中间有任何问题可以问我
+- 当前主要考虑 titok平台

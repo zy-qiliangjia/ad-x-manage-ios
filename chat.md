@@ -39,3 +39,11 @@
 
 
 我想在登陆后读取当前授权账号的下的全部 系列，广告组，广告，另外从数据上看 获取token时，并没有open_user_id
+
+
+
+ios 版帮我调整交互和功能，参考 [text](ad-manager-mobile.html)交互， 可以使用 frontend-desig 帮我设计下，
+如果用 mysql 相关改动，帮我把改动输出到docs下文档里面，相关功能重新梳理，并同步到 claude.md 里面
+
+帮我把 账号 zhouyang@qiliangjia.com 的密码改成 aa123456
+我现在登陆不进去

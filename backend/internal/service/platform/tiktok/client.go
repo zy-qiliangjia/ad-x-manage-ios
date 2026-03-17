@@ -105,11 +105,13 @@ func (c *Client) ExchangeToken(code string) (*platform.TokenResult, error) {
 }
 
 // RefreshToken 刷新 access_token。
+// TikTok v1.3 使用与 ExchangeToken 相同的端点，通过 grant_type 区分。
 // 文档：https://business-api.tiktok.com/portal/docs?id=1738373141733378
 func (c *Client) RefreshToken(refreshToken string) (*platform.TokenResult, error) {
 	body := map[string]string{
 		"app_id":        c.appID,
 		"secret":        c.appSecret,
+		"grant_type":    "refresh_token",
 		"refresh_token": refreshToken,
 	}
 	var resp struct {
@@ -123,7 +125,7 @@ func (c *Client) RefreshToken(refreshToken string) (*platform.TokenResult, error
 			OpenID                string `json:"open_id"`
 		} `json:"data"`
 	}
-	if err := c.post("/open_api/"+apiVersion+"/oauth2/refresh_token/", body, &resp); err != nil {
+	if err := c.post("/open_api/"+apiVersion+"/oauth2/access_token/", body, &resp); err != nil {
 		return nil, err
 	}
 	if resp.Code != 0 {

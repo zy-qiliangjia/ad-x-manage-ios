@@ -15,6 +15,7 @@ import (
 	"ad-x-manage/backend/internal/handler/health"
 	oauthhandler "ad-x-manage/backend/internal/handler/oauth"
 	operationloghandler "ad-x-manage/backend/internal/handler/operationlog"
+	statshandler "ad-x-manage/backend/internal/handler/stats"
 	"ad-x-manage/backend/internal/middleware"
 	adrepo "ad-x-manage/backend/internal/repository/ad"
 	adgrouprepo "ad-x-manage/backend/internal/repository/adgroup"
@@ -33,6 +34,7 @@ import (
 	"ad-x-manage/backend/internal/service/platform"
 	"ad-x-manage/backend/internal/service/platform/kwai"
 	"ad-x-manage/backend/internal/service/platform/tiktok"
+	statssvc "ad-x-manage/backend/internal/service/stats"
 	syncsvc "ad-x-manage/backend/internal/service/sync"
 )
 
@@ -83,6 +85,9 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 	// B9: 操作日志
 	operationLogService := operationlogsvc.New(logRepo, advRepo)
 
+	// Dashboard: 统计概览
+	statsService := statssvc.New(db)
+
 	// ── Handlers ──────────────────────────────────────────
 	authHandler := authhandler.New(authService)
 	oauthHandler := oauthhandler.New(oauthService)
@@ -91,6 +96,7 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 	adGroupHandler := adgrouphandler.New(adGroupService)
 	adHandler := adhandler.New(adService)
 	operationLogHandler := operationloghandler.New(operationLogService)
+	statsHandler := statshandler.New(statsService)
 
 	// ── Gin Engine ────────────────────────────────────────
 	r := gin.New()
@@ -155,6 +161,9 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 
 		// B9: 操作日志
 		protected.GET("/operation-logs", operationLogHandler.List)
+
+		// Dashboard: 统计概览
+		protected.GET("/stats", statsHandler.Overview)
 	}
 
 	return r

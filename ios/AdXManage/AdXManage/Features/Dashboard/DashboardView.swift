@@ -11,6 +11,9 @@ final class DashboardViewModel: ObservableObject {
     @Published var platformFilter: Platform? = nil {
         didSet { Task { await load() } }
     }
+    @Published var dateFilter: DateRangeFilter = .last7Days {
+        didSet { Task { await load() } }
+    }
     @Published var lastFetchedAt: Date? = nil
 
     private let service = StatsService.shared
@@ -27,7 +30,12 @@ final class DashboardViewModel: ObservableObject {
         isLoading = true
         error = nil
         do {
-            overview = try await service.overview(platform: platformFilter?.rawValue)
+            let range = dateFilter.dateRange
+            overview = try await service.overview(
+                platform: platformFilter?.rawValue,
+                startDate: range.from,
+                endDate: range.to
+            )
             lastFetchedAt = Date()
         } catch is CancellationError {
             // view teardown — suppress
@@ -43,6 +51,7 @@ final class DashboardViewModel: ObservableObject {
 struct DashboardView: View {
 
     @StateObject private var vm = DashboardViewModel()
+    @State private var showDatePicker = false
 
     var body: some View {
         ScrollView {
@@ -82,6 +91,9 @@ struct DashboardView: View {
             Text(vm.error ?? "")
         }
         .task { await vm.load() }
+        .sheet(isPresented: $showDatePicker) {
+            DashboardDatePickerSheet(dateFilter: $vm.dateFilter)
+        }
     }
 
     // MARK: - 渐变 Header
@@ -130,6 +142,26 @@ struct DashboardView: View {
                 HStack(spacing: AppTheme.Spacing.sm) {
                     platformTab(title: "全部平台", platform: nil)
                     platformTab(title: "TikTok", platform: .tiktok, dot: AppTheme.Colors.tiktokRed)
+                }
+
+                // 日期范围筛选 Chip
+                HStack {
+                    Button { showDatePicker = true } label: {
+                        HStack(spacing: 6) {
+                            Text("\(vm.dateFilter.label)  \(vm.dateFilter.subtitle)")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(AppTheme.Colors.primary)
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(AppTheme.Colors.primary)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(AppTheme.Colors.surface)
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    Spacer()
                 }
             }
             .padding(.horizontal, AppTheme.Spacing.xl)

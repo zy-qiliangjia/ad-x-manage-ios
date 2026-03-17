@@ -98,3 +98,6 @@ openspec
 - error:  GET http://localhost:8080/api/v1/campaigns?page=1&page_size=20
 ⬅️ 404 http://localhost:8080/api/v1/campaigns?page=1&page_size=20
    Body: 404 page not found
+
+# 功能新增-首页支持时间筛选
+- 参考图片

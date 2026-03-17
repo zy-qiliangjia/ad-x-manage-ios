@@ -10,7 +10,6 @@ import (
 
 	"ad-x-manage/backend/internal/model/dto"
 	"ad-x-manage/backend/internal/model/entity"
-	"ad-x-manage/backend/internal/pkg/encrypt"
 	advertiserrepo "ad-x-manage/backend/internal/repository/advertiser"
 	tokenrepo "ad-x-manage/backend/internal/repository/token"
 	"ad-x-manage/backend/internal/service/platform"
@@ -35,7 +34,6 @@ type service struct {
 	tokenRepo  tokenrepo.Repository
 	clients    map[string]platform.Client
 	syncSvc    syncsvc.Service
-	encryptKey string
 	log        *zap.Logger
 }
 
@@ -44,16 +42,14 @@ func New(
 	tokenRepo tokenrepo.Repository,
 	clients map[string]platform.Client,
 	syncSvc syncsvc.Service,
-	encryptKey string,
 	log *zap.Logger,
 ) Service {
 	return &service{
 		advRepo:    advRepo,
 		tokenRepo:  tokenRepo,
-		clients:    clients,
-		syncSvc:    syncSvc,
-		encryptKey: encryptKey,
-		log:        log,
+		clients:   clients,
+		syncSvc:   syncSvc,
+		log:       log,
 	}
 }
 
@@ -175,7 +171,7 @@ func (s *service) getAccessToken(ctx context.Context, tokenID uint64, _ string) 
 	if err != nil || token == nil {
 		return "", fmt.Errorf("token not found")
 	}
-	return encrypt.Decrypt(s.encryptKey, token.AccessTokenEnc)
+	return token.AccessToken, nil
 }
 
 func toListItem(a *entity.Advertiser) *dto.AdvertiserListItem {

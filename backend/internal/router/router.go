@@ -62,22 +62,22 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 
 	// ── Services ──────────────────────────────────────────
 	// B4: 数据同步（被 OAuth 和 Advertiser 服务共用）
-	syncService := syncsvc.New(platformClients, tokenRepo, advRepo, campRepo, groupRepo, adRepo, cfg.App.EncryptKey, log)
+	syncService := syncsvc.New(platformClients, tokenRepo, advRepo, campRepo, groupRepo, adRepo, log)
 
 	// B2: 用户认证
 	authService := authsvc.New(userRepo, rdb, cfg.App.Secret)
 
 	// B3: OAuth 授权（授权完成后自动触发后台同步）
-	oauthService := oauthsvc.New(platformClients, tokenRepo, advRepo, syncService, rdb, cfg.App.EncryptKey, log)
+	oauthService := oauthsvc.New(platformClients, tokenRepo, advRepo, syncService, rdb, log)
 
 	// B5: 广告主账号
-	advertiserService := advertisersvc.New(advRepo, tokenRepo, platformClients, syncService, cfg.App.EncryptKey, log)
+	advertiserService := advertisersvc.New(advRepo, tokenRepo, platformClients, syncService, log)
 
 	// B6: 推广系列
-	campaignService := campaignsvc.New(campRepo, advRepo, tokenRepo, logRepo, platformClients, cfg.App.EncryptKey, log)
+	campaignService := campaignsvc.New(campRepo, advRepo, tokenRepo, logRepo, platformClients, log)
 
 	// B7: 广告组
-	adGroupService := adgroupsvc.New(groupRepo, advRepo, tokenRepo, logRepo, platformClients, cfg.App.EncryptKey, log)
+	adGroupService := adgroupsvc.New(groupRepo, advRepo, tokenRepo, logRepo, platformClients, log)
 
 	// B8: 广告
 	adService := adsvc.New(adRepo, groupRepo, advRepo)
@@ -86,7 +86,7 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 	operationLogService := operationlogsvc.New(logRepo, advRepo)
 
 	// Dashboard: 统计概览
-	statsService := statssvc.New(db, platformClients, tokenRepo, cfg.App.EncryptKey, log)
+	statsService := statssvc.New(db, log)
 
 	// ── Handlers ──────────────────────────────────────────
 	authHandler := authhandler.New(authService)

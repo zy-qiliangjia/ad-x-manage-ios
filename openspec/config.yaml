@@ -1,5 +1,6 @@
 schema: spec-driven
 language: zh-CN
+locale: zh_CN
 
 # Project context (optional)
 # This is shown to AI when creating artifacts.

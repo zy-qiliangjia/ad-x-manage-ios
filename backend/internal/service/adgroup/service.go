@@ -9,7 +9,6 @@ import (
 
 	"ad-x-manage/backend/internal/model/dto"
 	"ad-x-manage/backend/internal/model/entity"
-	"ad-x-manage/backend/internal/pkg/encrypt"
 	adgrouprepo "ad-x-manage/backend/internal/repository/adgroup"
 	advertiserrepo "ad-x-manage/backend/internal/repository/advertiser"
 	operationlogrepo "ad-x-manage/backend/internal/repository/operationlog"
@@ -35,7 +34,6 @@ type service struct {
 	tokenRepo  tokenrepo.Repository
 	logRepo    operationlogrepo.Repository
 	clients    map[string]platform.Client
-	encryptKey string
 	log        *zap.Logger
 }
 
@@ -45,11 +43,10 @@ func New(
 	tokenRepo tokenrepo.Repository,
 	logRepo operationlogrepo.Repository,
 	clients map[string]platform.Client,
-	encryptKey string,
 	log *zap.Logger,
 ) Service {
 	return &service{groupRepo: groupRepo, advRepo: advRepo, tokenRepo: tokenRepo,
-		logRepo: logRepo, clients: clients, encryptKey: encryptKey, log: log}
+		logRepo: logRepo, clients: clients, log: log}
 }
 
 // List 广告组分页列表，campaignID=0 时返回该广告主下全部广告组。
@@ -210,7 +207,7 @@ func (s *service) getAccessToken(ctx context.Context, tokenID uint64) (string, e
 	if err != nil || token == nil {
 		return "", fmt.Errorf("token not found")
 	}
-	return encrypt.Decrypt(s.encryptKey, token.AccessTokenEnc)
+	return token.AccessToken, nil
 }
 
 func (s *service) writeLog(ctx context.Context, userID uint64, adv *entity.Advertiser,

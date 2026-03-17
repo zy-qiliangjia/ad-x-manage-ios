@@ -9,7 +9,6 @@ import (
 
 	"ad-x-manage/backend/internal/model/dto"
 	"ad-x-manage/backend/internal/model/entity"
-	"ad-x-manage/backend/internal/pkg/encrypt"
 	advertiserrepo "ad-x-manage/backend/internal/repository/advertiser"
 	campaignrepo "ad-x-manage/backend/internal/repository/campaign"
 	operationlogrepo "ad-x-manage/backend/internal/repository/operationlog"
@@ -35,7 +34,6 @@ type service struct {
 	tokenRepo  tokenrepo.Repository
 	logRepo    operationlogrepo.Repository
 	clients    map[string]platform.Client
-	encryptKey string
 	log        *zap.Logger
 }
 
@@ -45,11 +43,10 @@ func New(
 	tokenRepo tokenrepo.Repository,
 	logRepo operationlogrepo.Repository,
 	clients map[string]platform.Client,
-	encryptKey string,
 	log *zap.Logger,
 ) Service {
 	return &service{campRepo: campRepo, advRepo: advRepo, tokenRepo: tokenRepo,
-		logRepo: logRepo, clients: clients, encryptKey: encryptKey, log: log}
+		logRepo: logRepo, clients: clients, log: log}
 }
 
 // List 推广系列分页列表。
@@ -210,7 +207,7 @@ func (s *service) getAccessToken(ctx context.Context, tokenID uint64) (string, e
 	if err != nil || token == nil {
 		return "", fmt.Errorf("token not found")
 	}
-	return encrypt.Decrypt(s.encryptKey, token.AccessTokenEnc)
+	return token.AccessToken, nil
 }
 
 func (s *service) writeLog(ctx context.Context, userID uint64, adv *entity.Advertiser,

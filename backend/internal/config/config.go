@@ -14,10 +14,9 @@ type Config struct {
 }
 
 type AppConfig struct {
-	Env        string `envconfig:"APP_ENV"         default:"development"`
-	Port       string `envconfig:"APP_PORT"        default:"8080"`
-	Secret     string `envconfig:"APP_SECRET"      required:"true"`
-	EncryptKey string `envconfig:"APP_ENCRYPT_KEY" required:"true"`
+	Env    string `envconfig:"APP_ENV"    default:"development"`
+	Port   string `envconfig:"APP_PORT"   default:"8080"`
+	Secret string `envconfig:"APP_SECRET" required:"true"`
 }
 
 type DBConfig struct {

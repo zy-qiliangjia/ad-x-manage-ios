@@ -2,17 +2,12 @@ package statssvc
 
 import (
 	"context"
-	"fmt"
-	"sync"
 	"time"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
 	"ad-x-manage/backend/internal/model/entity"
-	"ad-x-manage/backend/internal/pkg/encrypt"
-	tokenrepo "ad-x-manage/backend/internal/repository/token"
-	"ad-x-manage/backend/internal/service/platform"
 )
 
 // OverviewResult 数据概览聚合结果。
@@ -43,26 +38,17 @@ type Service interface {
 }
 
 type service struct {
-	db         *gorm.DB
-	clients    map[string]platform.Client
-	tokenRepo  tokenrepo.Repository
-	encryptKey string
-	log        *zap.Logger
+	db  *gorm.DB
+	log *zap.Logger
 }
 
 // New 创建统计服务实例。
-func New(db *gorm.DB, clients map[string]platform.Client, tokenRepo tokenrepo.Repository, encryptKey string, log *zap.Logger) Service {
-	return &service{
-		db:         db,
-		clients:    clients,
-		tokenRepo:  tokenRepo,
-		encryptKey: encryptKey,
-		log:        log,
-	}
+func New(db *gorm.DB, log *zap.Logger) Service {
+	return &service{db: db, log: log}
 }
 
 // Overview 查询当前用户的广告数据概览。
-// 消耗/点击/展示/转化来自平台报表 API（近7天），系列数/广告组数来自本地 DB。
+// 消耗/点击/展示/转化聚合自本地 campaigns 表，系列数/广告组数同样来自本地 DB。
 func (s *service) Overview(ctx context.Context, userID uint64, platformFilter, startDate, endDate string) (*OverviewResult, error) {
 	// 默认近7天
 	if startDate == "" || endDate == "" {
@@ -107,52 +93,23 @@ func (s *service) Overview(ctx context.Context, userID uint64, platformFilter, s
 		return nil, err
 	}
 
-	// 3. 并发调用各广告主报表 API，聚合消耗/点击/展示/转化
-	type partial struct {
-		spend, clicks, impressions, conversions float64
+	// 3. 从本地 campaigns 表聚合消耗/点击/展示/转化
+	var metrics struct {
+		Spend       float64
+		Clicks      float64
+		Impressions float64
+		Conversions float64
 	}
-	partials := make([]partial, len(advs))
-
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, 10) // 最多10个并发
-
-	for i, adv := range advs {
-		wg.Add(1)
-		go func(idx int, a entity.Advertiser) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			client, ok := s.clients[a.Platform]
-			if !ok {
-				return
-			}
-			accessToken, err := s.getAccessToken(ctx, a.TokenID)
-			if err != nil {
-				s.log.Warn("stats: get access token failed", zap.Uint64("token_id", a.TokenID), zap.Error(err))
-				return
-			}
-			report, err := client.GetReport(ctx, accessToken, a.AdvertiserID, startDate, endDate)
-			if err != nil {
-				s.log.Warn("stats: get report failed", zap.String("platform", a.Platform), zap.String("advertiser_id", a.AdvertiserID), zap.Error(err))
-				return
-			}
-			partials[idx] = partial{
-				spend:       report.Spend,
-				clicks:      report.Clicks,
-				impressions: report.Impressions,
-				conversions: report.Conversions,
-			}
-		}(i, adv)
+	if err := s.db.WithContext(ctx).Table("campaigns").
+		Select("COALESCE(SUM(spend),0) AS spend, COALESCE(SUM(clicks),0) AS clicks, COALESCE(SUM(impressions),0) AS impressions, COALESCE(SUM(conversions),0) AS conversions").
+		Where("advertiser_id IN ?", advIDs).
+		Scan(&metrics).Error; err != nil {
+		return nil, err
 	}
-	wg.Wait()
-
-	for _, p := range partials {
-		result.TotalSpend += p.spend
-		result.TotalClicks += p.clicks
-		result.TotalImpressions += p.impressions
-		result.TotalConversions += p.conversions
-	}
+	result.TotalSpend = metrics.Spend
+	result.TotalClicks = metrics.Clicks
+	result.TotalImpressions = metrics.Impressions
+	result.TotalConversions = metrics.Conversions
 
 	return result, nil
 }
@@ -284,11 +241,3 @@ func applyDateFilter(q *gorm.DB, dateFrom, dateTo string) *gorm.DB {
 	return q
 }
 
-// getAccessToken 从仓库获取并解密 access_token。
-func (s *service) getAccessToken(ctx context.Context, tokenID uint64) (string, error) {
-	token, err := s.tokenRepo.FindByID(ctx, tokenID)
-	if err != nil || token == nil {
-		return "", fmt.Errorf("token not found: %w", err)
-	}
-	return encrypt.Decrypt(s.encryptKey, token.AccessTokenEnc)
-}

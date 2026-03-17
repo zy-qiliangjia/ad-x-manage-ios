@@ -17,7 +17,7 @@ type Repository interface {
 	FindByUserAndPlatform(ctx context.Context, userID uint64, platform string) ([]*entity.PlatformToken, error)
 	FindActiveByUserAndPlatform(ctx context.Context, userID uint64, platform string) ([]*entity.PlatformToken, error)
 	FindByUniqueKey(ctx context.Context, userID uint64, platform, openUserID string) (*entity.PlatformToken, error)
-	UpdateToken(ctx context.Context, id uint64, accessTokenEnc, refreshTokenEnc string, expiresAt time.Time) error
+	UpdateToken(ctx context.Context, id uint64, accessToken, refreshToken string, expiresAt time.Time) error
 	Revoke(ctx context.Context, id uint64) error
 	// FindExpiringSoon 查找 30 分钟内即将过期的 token（用于定时刷新）
 	FindExpiringSoon(ctx context.Context, within time.Duration) ([]*entity.PlatformToken, error)
@@ -38,7 +38,7 @@ func (r *repo) Upsert(ctx context.Context, token *entity.PlatformToken) error {
 				{Name: "user_id"}, {Name: "platform"}, {Name: "open_user_id"},
 			},
 			DoUpdates: clause.AssignmentColumns([]string{
-				"access_token_enc", "refresh_token_enc", "expires_at", "scope", "status", "updated_at",
+				"access_token", "refresh_token", "expires_at", "scope", "status", "updated_at",
 			}),
 		}).
 		Create(token).Error
@@ -80,14 +80,14 @@ func (r *repo) FindByUniqueKey(ctx context.Context, userID uint64, platform, ope
 	return &t, err
 }
 
-func (r *repo) UpdateToken(ctx context.Context, id uint64, accessTokenEnc, refreshTokenEnc string, expiresAt time.Time) error {
+func (r *repo) UpdateToken(ctx context.Context, id uint64, accessToken, refreshToken string, expiresAt time.Time) error {
 	return r.db.WithContext(ctx).
 		Model(&entity.PlatformToken{}).
 		Where("id = ?", id).
 		Updates(map[string]any{
-			"access_token_enc":  accessTokenEnc,
-			"refresh_token_enc": refreshTokenEnc,
-			"expires_at":        expiresAt,
+			"access_token":  accessToken,
+			"refresh_token": refreshToken,
+			"expires_at":    expiresAt,
 		}).Error
 }
 

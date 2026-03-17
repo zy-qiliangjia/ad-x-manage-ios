@@ -10,7 +10,6 @@ import (
 	"go.uber.org/zap"
 
 	"ad-x-manage/backend/internal/model/entity"
-	"ad-x-manage/backend/internal/pkg/encrypt"
 	adrepo "ad-x-manage/backend/internal/repository/ad"
 	adgrouprepo "ad-x-manage/backend/internal/repository/adgroup"
 	advertiserrepo "ad-x-manage/backend/internal/repository/advertiser"
@@ -36,14 +35,13 @@ type Service interface {
 }
 
 type service struct {
-	clients    map[string]platform.Client
-	tokenRepo  tokenrepo.Repository
-	advRepo    advertiserrepo.Repository
-	campRepo   campaignrepo.Repository
-	groupRepo  adgrouprepo.Repository
-	adRepo     adrepo.Repository
-	encryptKey string
-	log        *zap.Logger
+	clients   map[string]platform.Client
+	tokenRepo tokenrepo.Repository
+	advRepo   advertiserrepo.Repository
+	campRepo  campaignrepo.Repository
+	groupRepo adgrouprepo.Repository
+	adRepo    adrepo.Repository
+	log       *zap.Logger
 }
 
 func New(
@@ -53,18 +51,16 @@ func New(
 	campRepo campaignrepo.Repository,
 	groupRepo adgrouprepo.Repository,
 	adRepo adrepo.Repository,
-	encryptKey string,
 	log *zap.Logger,
 ) Service {
 	return &service{
-		clients:    clients,
-		tokenRepo:  tokenRepo,
-		advRepo:    advRepo,
-		campRepo:   campRepo,
-		groupRepo:  groupRepo,
-		adRepo:     adRepo,
-		encryptKey: encryptKey,
-		log:        log,
+		clients:   clients,
+		tokenRepo: tokenRepo,
+		advRepo:   advRepo,
+		campRepo:  campRepo,
+		groupRepo: groupRepo,
+		adRepo:    adRepo,
+		log:       log,
 	}
 }
 
@@ -286,7 +282,7 @@ func (s *service) getValidAccessToken(ctx context.Context, tokenID uint64, platf
 		}
 	}
 
-	return encrypt.Decrypt(s.encryptKey, token.AccessTokenEnc)
+	return token.AccessToken, nil
 }
 
 // refreshToken 刷新 access_token 并更新数据库。
@@ -296,26 +292,12 @@ func (s *service) refreshToken(ctx context.Context, token *entity.PlatformToken,
 		return "", fmt.Errorf("unsupported platform: %s", platformName)
 	}
 
-	refreshToken, err := encrypt.Decrypt(s.encryptKey, token.RefreshTokenEnc)
-	if err != nil {
-		return "", fmt.Errorf("decrypt refresh token: %w", err)
-	}
-
-	result, err := client.RefreshToken(refreshToken)
+	result, err := client.RefreshToken(token.RefreshToken)
 	if err != nil {
 		return "", fmt.Errorf("platform refresh token: %w", err)
 	}
 
-	accessEnc, err := encrypt.Encrypt(s.encryptKey, result.AccessToken)
-	if err != nil {
-		return "", err
-	}
-	refreshEnc, err := encrypt.Encrypt(s.encryptKey, result.RefreshToken)
-	if err != nil {
-		return "", err
-	}
-
-	if err := s.tokenRepo.UpdateToken(ctx, token.ID, accessEnc, refreshEnc, result.ExpiresAt); err != nil {
+	if err := s.tokenRepo.UpdateToken(ctx, token.ID, result.AccessToken, result.RefreshToken, result.ExpiresAt); err != nil {
 		s.log.Warn("update refreshed token in db failed", zap.Uint64("token_id", token.ID), zap.Error(err))
 	}
 

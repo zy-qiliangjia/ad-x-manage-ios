@@ -8,8 +8,8 @@ type PlatformToken struct {
 	UserID          uint64     `gorm:"not null;index:idx_user_platform"                  json:"user_id"`
 	Platform        string     `gorm:"size:20;not null;index:idx_user_platform"          json:"platform"`
 	OpenUserID      string     `gorm:"size:100;not null;uniqueIndex:uk_user_platform_openid" json:"open_user_id"`
-	AccessTokenEnc  string     `gorm:"type:text;not null"                                json:"-"`
-	RefreshTokenEnc string     `gorm:"type:text;default:null"                            json:"-"`
+	AccessToken  string     `gorm:"column:access_token;type:text;not null"   json:"-"`
+	RefreshToken string     `gorm:"column:refresh_token;type:text;default:null" json:"-"`
 	ExpiresAt       *time.Time `gorm:"default:null"                                      json:"expires_at"`
 	Scope           string     `gorm:"size:500;default:null"                             json:"scope"`
 	Status          uint8      `gorm:"not null;default:1"                                json:"status"`

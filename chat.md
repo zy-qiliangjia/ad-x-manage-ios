@@ -101,3 +101,9 @@ openspec
 
 # 功能新增-首页支持时间筛选
 - 参考图片
+
+# 获取首页广告数据统计错误-需要修复
+	WARN	stats/service.go:137	stats: get report failed	{"platform": "tiktok", "advertiser_id": "7600228996734910465", "error": "tiktok get report error 40001: Permission error: The access token lacks the required scope for endpoint '/report/advertiser/get/(method=POST)'. Please first check if the request method is correct then ask the user to generate a new access token and reauthorize your API App with the necessary API scopes."}
+1. 能否改用 广告主，批量一次获取
+2. 授权token 不用加密处理 
+3. 日志输出所有sql&请求明细

@@ -1,7 +1,6 @@
 package platform
 
 import (
-	"context"
 	"time"
 )
 
@@ -39,9 +38,6 @@ type Client interface {
 	// ── 广告 ───────────────────────────────────────────────
 	GetAds(accessToken, advertiserID, adGroupID string, page, pageSize int) ([]*AdInfo, int64, error)
 
-	// ── 报表 ───────────────────────────────────────────────
-	// GetReport 查询指定广告主在日期范围内的核心指标汇总
-	GetReport(ctx context.Context, accessToken, advertiserID, startDate, endDate string) (*ReportResult, error)
 }
 
 // ── 共享数据结构 ───────────────────────────────────────────────
@@ -98,9 +94,3 @@ type AdInfo struct {
 	CreativeType string
 }
 
-type ReportResult struct {
-	Spend       float64
-	Clicks      float64
-	Impressions float64
-	Conversions float64
-}

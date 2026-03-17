@@ -13,7 +13,6 @@ import (
 
 	"ad-x-manage/backend/internal/model/dto"
 	"ad-x-manage/backend/internal/model/entity"
-	"ad-x-manage/backend/internal/pkg/encrypt"
 	advertiserrepo "ad-x-manage/backend/internal/repository/advertiser"
 	tokenrepo "ad-x-manage/backend/internal/repository/token"
 	"ad-x-manage/backend/internal/service/platform"
@@ -38,13 +37,12 @@ type Service interface {
 }
 
 type service struct {
-	clients    map[string]platform.Client
-	tokenRepo  tokenrepo.Repository
-	advRepo    advertiserrepo.Repository
-	syncSvc    syncsvc.Service
-	rdb        *redis.Client
-	encryptKey string
-	log        *zap.Logger
+	clients   map[string]platform.Client
+	tokenRepo tokenrepo.Repository
+	advRepo   advertiserrepo.Repository
+	syncSvc   syncsvc.Service
+	rdb       *redis.Client
+	log       *zap.Logger
 }
 
 func New(
@@ -53,17 +51,15 @@ func New(
 	advRepo advertiserrepo.Repository,
 	syncSvc syncsvc.Service,
 	rdb *redis.Client,
-	encryptKey string,
 	log *zap.Logger,
 ) Service {
 	return &service{
-		clients:    clients,
-		tokenRepo:  tokenRepo,
-		advRepo:    advRepo,
-		syncSvc:    syncSvc,
-		rdb:        rdb,
-		encryptKey: encryptKey,
-		log:        log,
+		clients:   clients,
+		tokenRepo: tokenRepo,
+		advRepo:   advRepo,
+		syncSvc:   syncSvc,
+		rdb:       rdb,
+		log:       log,
 	}
 }
 
@@ -110,25 +106,16 @@ func (s *service) Callback(ctx context.Context, userID uint64, platformName, cod
 		return nil, fmt.Errorf("exchange token: %w", err)
 	}
 
-	// 3. 加密存储 token
-	accessEnc, err := encrypt.Encrypt(s.encryptKey, tokenResult.AccessToken)
-	if err != nil {
-		return nil, fmt.Errorf("encrypt access_token: %w", err)
-	}
-	refreshEnc, err := encrypt.Encrypt(s.encryptKey, tokenResult.RefreshToken)
-	if err != nil {
-		return nil, fmt.Errorf("encrypt refresh_token: %w", err)
-	}
-
+	// 3. 存储 token（明文）
 	platformToken := &entity.PlatformToken{
-		UserID:          userID,
-		Platform:        platformName,
-		OpenUserID:      tokenResult.OpenUserID,
-		AccessTokenEnc:  accessEnc,
-		RefreshTokenEnc: refreshEnc,
-		ExpiresAt:       &tokenResult.ExpiresAt,
-		Scope:           tokenResult.Scope,
-		Status:          entity.TokenStatusActive,
+		UserID:       userID,
+		Platform:     platformName,
+		OpenUserID:   tokenResult.OpenUserID,
+		AccessToken:  tokenResult.AccessToken,
+		RefreshToken: tokenResult.RefreshToken,
+		ExpiresAt:    &tokenResult.ExpiresAt,
+		Scope:        tokenResult.Scope,
+		Status:       entity.TokenStatusActive,
 	}
 	if err := s.tokenRepo.Upsert(ctx, platformToken); err != nil {
 		return nil, fmt.Errorf("save token: %w", err)

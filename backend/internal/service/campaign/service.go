@@ -24,6 +24,7 @@ var (
 
 type Service interface {
 	List(ctx context.Context, userID, advertiserID uint64, req *dto.CampaignListRequest) ([]*dto.CampaignItem, int64, error)
+	ListAll(ctx context.Context, userID uint64, req *dto.AllCampaignListRequest) ([]*dto.CampaignItem, int64, error)
 	UpdateBudget(ctx context.Context, userID, campaignID uint64, budget float64) error
 	UpdateStatus(ctx context.Context, userID, campaignID uint64, action string) error
 }
@@ -53,7 +54,8 @@ func New(
 
 // List 推广系列分页列表。
 func (s *service) List(ctx context.Context, userID, advertiserID uint64, req *dto.CampaignListRequest) ([]*dto.CampaignItem, int64, error) {
-	if _, err := s.checkAdvertiserOwnership(ctx, userID, advertiserID); err != nil {
+	adv, err := s.checkAdvertiserOwnership(ctx, userID, advertiserID)
+	if err != nil {
 		return nil, 0, err
 	}
 	if req.Page < 1 {
@@ -68,7 +70,46 @@ func (s *service) List(ctx context.Context, userID, advertiserID uint64, req *dt
 	}
 	items := make([]*dto.CampaignItem, 0, len(list))
 	for _, c := range list {
-		items = append(items, toCampaignItem(c))
+		items = append(items, toCampaignItem(c, adv))
+	}
+	return items, total, nil
+}
+
+// ListAll 跨广告主全量推广系列分页列表，支持平台和关键词过滤。
+func (s *service) ListAll(ctx context.Context, userID uint64, req *dto.AllCampaignListRequest) ([]*dto.CampaignItem, int64, error) {
+	if req.Page < 1 {
+		req.Page = 1
+	}
+	if req.PageSize < 1 || req.PageSize > 100 {
+		req.PageSize = 20
+	}
+
+	advs, err := s.advRepo.FindAllActiveByUserID(ctx, userID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	advIDs := make([]uint64, 0, len(advs))
+	advMap := make(map[uint64]*entity.Advertiser, len(advs))
+	for _, adv := range advs {
+		if req.Platform != "" && adv.Platform != req.Platform {
+			continue
+		}
+		advIDs = append(advIDs, adv.ID)
+		advMap[adv.ID] = adv
+	}
+	if len(advIDs) == 0 {
+		return nil, 0, nil
+	}
+
+	list, total, err := s.campRepo.FindByAdvertiserIDs(ctx, advIDs, req.Keyword, req.Page, req.PageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	items := make([]*dto.CampaignItem, 0, len(list))
+	for _, c := range list {
+		items = append(items, toCampaignItem(c, advMap[c.AdvertiserID]))
 	}
 	return items, total, nil
 }
@@ -191,12 +232,19 @@ func (s *service) writeLog(ctx context.Context, userID uint64, adv *entity.Adver
 	})
 }
 
-func toCampaignItem(c *entity.Campaign) *dto.CampaignItem {
-	return &dto.CampaignItem{
+func toCampaignItem(c *entity.Campaign, adv *entity.Advertiser) *dto.CampaignItem {
+	item := &dto.CampaignItem{
 		ID: c.ID, CampaignID: c.CampaignID, CampaignName: c.CampaignName,
 		Status: c.Status, BudgetMode: c.BudgetMode, Budget: c.Budget,
-		Spend: c.Spend, Objective: c.Objective,
+		Spend: c.Spend, Clicks: c.Clicks, Impressions: c.Impressions,
+		Conversions: c.Conversions, Objective: c.Objective,
+		AdvertiserID: c.AdvertiserID,
 	}
+	if adv != nil {
+		item.AdvertiserName = adv.AdvertiserName
+		item.Platform = adv.Platform
+	}
+	return item
 }
 
 // toPlatformStatus 将 iOS 的平台无关 action 转为平台原生状态值。

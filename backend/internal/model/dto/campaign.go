@@ -8,14 +8,28 @@ type CampaignListRequest struct {
 }
 
 type CampaignItem struct {
-	ID           uint64  `json:"id"`
-	CampaignID   string  `json:"campaign_id"`
-	CampaignName string  `json:"campaign_name"`
-	Status       string  `json:"status"`
-	BudgetMode   string  `json:"budget_mode"`
-	Budget       float64 `json:"budget"`
-	Spend        float64 `json:"spend"`
-	Objective    string  `json:"objective"`
+	ID             uint64  `json:"id"`
+	CampaignID     string  `json:"campaign_id"`
+	CampaignName   string  `json:"campaign_name"`
+	Status         string  `json:"status"`
+	BudgetMode     string  `json:"budget_mode"`
+	Budget         float64 `json:"budget"`
+	Spend          float64 `json:"spend"`
+	Clicks         int64   `json:"clicks"`
+	Impressions    int64   `json:"impressions"`
+	Conversions    int64   `json:"conversions"`
+	Objective      string  `json:"objective"`
+	AdvertiserID   uint64  `json:"advertiser_id"`
+	AdvertiserName string  `json:"advertiser_name"`
+	Platform       string  `json:"platform"`
+}
+
+// ── 全量推广系列列表请求 ─────────────────────────────────────────
+type AllCampaignListRequest struct {
+	Platform string `form:"platform"`
+	Keyword  string `form:"keyword"`
+	Page     int    `form:"page,default=1"`
+	PageSize int    `form:"page_size,default=20"`
 }
 
 // ── 修改预算 ───────────────────────────────────────────────────

@@ -1,6 +1,9 @@
 package platform
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // Client 广告平台统一接口，TikTok 和 Kwai 各自实现。
 type Client interface {
@@ -35,6 +38,10 @@ type Client interface {
 
 	// ── 广告 ───────────────────────────────────────────────
 	GetAds(accessToken, advertiserID, adGroupID string, page, pageSize int) ([]*AdInfo, int64, error)
+
+	// ── 报表 ───────────────────────────────────────────────
+	// GetReport 查询指定广告主在日期范围内的核心指标汇总
+	GetReport(ctx context.Context, accessToken, advertiserID, startDate, endDate string) (*ReportResult, error)
 }
 
 // ── 共享数据结构 ───────────────────────────────────────────────
@@ -89,4 +96,11 @@ type AdInfo struct {
 	AdGroupID    string
 	Status       string
 	CreativeType string
+}
+
+type ReportResult struct {
+	Spend       float64
+	Clicks      float64
+	Impressions float64
+	Conversions float64
 }

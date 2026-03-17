@@ -138,7 +138,12 @@ struct AdsManageView: View {
                     // 汇总卡片
                     AdsSummaryCardView(
                         scopeLabel: "全部账号",
-                        spend: 0, clicks: 0, impressions: 0, conversions: 0
+                        spend:       vm.overview?.totalSpend        ?? 0,
+                        clicks:      Int(vm.overview?.totalClicks   ?? 0),
+                        impressions: Int(vm.overview?.totalImpressions ?? 0),
+                        conversions: Int(vm.overview?.totalConversions ?? 0),
+                        dateFilter:  Binding(get: { vm.dateFilter }, set: { vm.dateFilter = $0 }),
+                        isLoadingSummary: vm.summaryLoading
                     )
 
                     ForEach(vm.items) { adv in
@@ -181,7 +186,15 @@ final class AdsManageListViewModel: ObservableObject {
     @Published var statusConfirmTarget: AdvertiserListItem? = nil
     @Published var updatingStatusID: UInt64?                = nil
 
-    private let service  = AdvertiserService.shared
+    // 汇总统计（全部账号，使用 stats overview）
+    @Published var dateFilter: DateRangeFilter = .last7Days {
+        didSet { Task { await loadOverview() } }
+    }
+    @Published var overview: StatsOverview? = nil
+    @Published var summaryLoading = false
+
+    private let service      = AdvertiserService.shared
+    private let statsService = StatsService.shared
     private var page     = 1
     private let pageSize = 20
     private var searchTask: Task<Void, Never>? = nil
@@ -196,6 +209,7 @@ final class AdsManageListViewModel: ObservableObject {
             page    = 2
         } catch { self.error = msg(error) }
         isLoading = false
+        await loadOverview()
     }
 
     func refresh() async {
@@ -206,6 +220,14 @@ final class AdsManageListViewModel: ObservableObject {
             hasMore = pagination.hasMore
             page    = 2
         } catch { self.error = msg(error) }
+        await loadOverview()
+    }
+
+    func loadOverview() async {
+        summaryLoading = true
+        let r = dateFilter.dateRange
+        overview = try? await statsService.overview(startDate: r.from, endDate: r.to)
+        summaryLoading = false
     }
 
     func loadMore() async {
@@ -424,8 +446,12 @@ struct AdsCampaignView: View {
                             // 汇总卡片
                             AdsSummaryCardView(
                                 scopeLabel: advertiser.advertiserName,
-                                spend: vm.items.reduce(0) { $0 + $1.spend },
-                                clicks: 0, impressions: 0, conversions: 0
+                                spend:       vm.summary?.spend        ?? vm.items.reduce(0) { $0 + $1.spend },
+                                clicks:      vm.summary?.clicks       ?? 0,
+                                impressions: vm.summary?.impressions  ?? 0,
+                                conversions: vm.summary?.conversions  ?? 0,
+                                dateFilter:  Binding(get: { vm.dateFilter }, set: { vm.dateFilter = $0 }),
+                                isLoadingSummary: vm.summaryLoading
                             )
 
                             ForEach(vm.items) { item in
@@ -459,6 +485,17 @@ struct AdsCampaignView: View {
         .background(AppTheme.Colors.background)
         .navigationTitle(advertiser.advertiserName)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if vm.summaryLoading {
+                    ProgressView().scaleEffect(0.7)
+                } else if let label = vm.lastUpdatedLabel {
+                    Text("更新于 \(label)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
         .alert("操作失败", isPresented: Binding(
             get: { vm.error != nil }, set: { if !$0 { vm.error = nil } }
         )) {
@@ -529,8 +566,12 @@ struct AdsAdGroupView: View {
                         LazyVStack(spacing: AppTheme.Spacing.md) {
                             AdsSummaryCardView(
                                 scopeLabel: campaign.campaignName,
-                                spend: vm.items.reduce(0) { $0 + $1.spend },
-                                clicks: 0, impressions: 0, conversions: 0
+                                spend:       vm.summary?.spend        ?? vm.items.reduce(0) { $0 + $1.spend },
+                                clicks:      vm.summary?.clicks       ?? 0,
+                                impressions: vm.summary?.impressions  ?? 0,
+                                conversions: vm.summary?.conversions  ?? 0,
+                                dateFilter:  Binding(get: { vm.dateFilter }, set: { vm.dateFilter = $0 }),
+                                isLoadingSummary: vm.summaryLoading
                             )
 
                             ForEach(vm.items) { item in
@@ -564,6 +605,17 @@ struct AdsAdGroupView: View {
         .background(AppTheme.Colors.background)
         .navigationTitle(campaign.campaignName)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if vm.summaryLoading {
+                    ProgressView().scaleEffect(0.7)
+                } else if let label = vm.lastUpdatedLabel {
+                    Text("更新于 \(label)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
         .alert("操作失败", isPresented: Binding(
             get: { vm.error != nil }, set: { if !$0 { vm.error = nil } }
         )) {
@@ -604,27 +656,55 @@ struct AdsAdView: View {
     }
 
     var body: some View {
-        Group {
-            if vm.isLoading && vm.items.isEmpty {
-                ProgressView("加载中…").frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if vm.items.isEmpty && !vm.isLoading {
-                emptyView(vm.searchText.isEmpty ? "暂无广告" : "没有匹配的广告")
-            } else {
-                List {
-                    ForEach(vm.items) { item in
-                        AdRow(item: item)
-                            .onAppear {
-                                if item.id == vm.items.last?.id { Task { await vm.loadMore() } }
-                            }
+        VStack(spacing: 0) {
+            // 汇总卡片
+            AdsSummaryCardView(
+                scopeLabel: adgroup.adgroupName,
+                spend:       vm.summary?.spend        ?? 0,
+                clicks:      vm.summary?.clicks       ?? 0,
+                impressions: vm.summary?.impressions  ?? 0,
+                conversions: vm.summary?.conversions  ?? 0,
+                dateFilter:  Binding(get: { vm.dateFilter }, set: { vm.dateFilter = $0 }),
+                isLoadingSummary: vm.summaryLoading
+            )
+            .padding(.horizontal, AppTheme.Spacing.xl)
+            .padding(.top, AppTheme.Spacing.md)
+            .padding(.bottom, AppTheme.Spacing.sm)
+
+            Group {
+                if vm.isLoading && vm.items.isEmpty {
+                    ProgressView("加载中…").frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if vm.items.isEmpty && !vm.isLoading {
+                    emptyView(vm.searchText.isEmpty ? "暂无广告" : "没有匹配的广告")
+                } else {
+                    List {
+                        ForEach(vm.items) { item in
+                            AdRow(item: item)
+                                .onAppear {
+                                    if item.id == vm.items.last?.id { Task { await vm.loadMore() } }
+                                }
+                        }
+                        if vm.isLoadingMore { loadingMoreRow }
                     }
-                    if vm.isLoadingMore { loadingMoreRow }
+                    .listStyle(.plain)
+                    .refreshable { await vm.refresh() }
                 }
-                .listStyle(.plain)
-                .refreshable { await vm.refresh() }
             }
         }
+        .background(AppTheme.Colors.background)
         .navigationTitle(adgroup.adgroupName)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                if vm.summaryLoading {
+                    ProgressView().scaleEffect(0.7)
+                } else if let label = vm.lastUpdatedLabel {
+                    Text("更新于 \(label)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
         .searchable(text: $vm.searchText,
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: "搜索广告 ID 或名称")

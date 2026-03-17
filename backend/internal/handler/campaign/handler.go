@@ -57,6 +57,30 @@ func (h *Handler) List(c *gin.Context) {
 	})
 }
 
+// ListAll 全量推广系列分页列表（跨广告主）
+// GET /api/v1/campaigns?platform=tiktok&keyword=xxx&page=1&page_size=20
+func (h *Handler) ListAll(c *gin.Context) {
+	var req dto.AllCampaignListRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	userID := middleware.GetUserID(c)
+
+	list, total, err := h.svc.ListAll(c.Request.Context(), userID, &req)
+	if err != nil {
+		response.ServerError(c, "获取推广系列列表失败")
+		return
+	}
+
+	response.OKPage(c, list, response.Pagination{
+		Page:     req.Page,
+		PageSize: req.PageSize,
+		Total:    total,
+		HasMore:  int64(req.Page*req.PageSize) < total,
+	})
+}
+
 // UpdateBudget 修改推广系列预算
 // PATCH /api/v1/campaigns/:id/budget
 func (h *Handler) UpdateBudget(c *gin.Context) {

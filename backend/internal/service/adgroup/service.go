@@ -24,6 +24,7 @@ var (
 
 type Service interface {
 	List(ctx context.Context, userID, advertiserID uint64, req *dto.AdGroupListRequest) ([]*dto.AdGroupItem, int64, error)
+	ListAll(ctx context.Context, userID uint64, req *dto.AllAdGroupListRequest) ([]*dto.AdGroupItem, int64, error)
 	UpdateBudget(ctx context.Context, userID, adgroupID uint64, budget float64) error
 	UpdateStatus(ctx context.Context, userID, adgroupID uint64, action string) error
 }
@@ -53,7 +54,8 @@ func New(
 
 // List 广告组分页列表，campaignID=0 时返回该广告主下全部广告组。
 func (s *service) List(ctx context.Context, userID, advertiserID uint64, req *dto.AdGroupListRequest) ([]*dto.AdGroupItem, int64, error) {
-	if _, err := s.checkAdvertiserOwnership(ctx, userID, advertiserID); err != nil {
+	adv, err := s.checkAdvertiserOwnership(ctx, userID, advertiserID)
+	if err != nil {
 		return nil, 0, err
 	}
 	if req.Page < 1 {
@@ -68,7 +70,46 @@ func (s *service) List(ctx context.Context, userID, advertiserID uint64, req *dt
 	}
 	items := make([]*dto.AdGroupItem, 0, len(list))
 	for _, g := range list {
-		items = append(items, toAdGroupItem(g))
+		items = append(items, toAdGroupItem(g, adv))
+	}
+	return items, total, nil
+}
+
+// ListAll 跨广告主全量广告组分页列表，支持平台和关键词过滤。
+func (s *service) ListAll(ctx context.Context, userID uint64, req *dto.AllAdGroupListRequest) ([]*dto.AdGroupItem, int64, error) {
+	if req.Page < 1 {
+		req.Page = 1
+	}
+	if req.PageSize < 1 || req.PageSize > 100 {
+		req.PageSize = 20
+	}
+
+	advs, err := s.advRepo.FindAllActiveByUserID(ctx, userID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	advIDs := make([]uint64, 0, len(advs))
+	advMap := make(map[uint64]*entity.Advertiser, len(advs))
+	for _, adv := range advs {
+		if req.Platform != "" && adv.Platform != req.Platform {
+			continue
+		}
+		advIDs = append(advIDs, adv.ID)
+		advMap[adv.ID] = adv
+	}
+	if len(advIDs) == 0 {
+		return nil, 0, nil
+	}
+
+	list, total, err := s.groupRepo.FindByAdvertiserIDs(ctx, advIDs, req.Keyword, req.Page, req.PageSize)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	items := make([]*dto.AdGroupItem, 0, len(list))
+	for _, g := range list {
+		items = append(items, toAdGroupItem(g, advMap[g.AdvertiserID]))
 	}
 	return items, total, nil
 }
@@ -191,12 +232,19 @@ func (s *service) writeLog(ctx context.Context, userID uint64, adv *entity.Adver
 	})
 }
 
-func toAdGroupItem(g *entity.AdGroup) *dto.AdGroupItem {
-	return &dto.AdGroupItem{
+func toAdGroupItem(g *entity.AdGroup, adv *entity.Advertiser) *dto.AdGroupItem {
+	item := &dto.AdGroupItem{
 		ID: g.ID, AdgroupID: g.AdgroupID, AdgroupName: g.AdgroupName,
 		CampaignID: g.CampaignID, Status: g.Status, BudgetMode: g.BudgetMode,
-		Budget: g.Budget, Spend: g.Spend, BidType: g.BidType, BidPrice: g.BidPrice,
+		Budget: g.Budget, Spend: g.Spend, Clicks: g.Clicks, Impressions: g.Impressions,
+		Conversions: g.Conversions, BidType: g.BidType, BidPrice: g.BidPrice,
+		AdvertiserID: g.AdvertiserID,
 	}
+	if adv != nil {
+		item.AdvertiserName = adv.AdvertiserName
+		item.Platform = adv.Platform
+	}
+	return item
 }
 
 func toPlatformStatus(platformName, action string) string {

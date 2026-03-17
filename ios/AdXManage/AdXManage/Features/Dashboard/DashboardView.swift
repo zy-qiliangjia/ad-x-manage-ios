@@ -11,8 +11,16 @@ final class DashboardViewModel: ObservableObject {
     @Published var platformFilter: Platform? = nil {
         didSet { Task { await load() } }
     }
+    @Published var lastFetchedAt: Date? = nil
 
     private let service = StatsService.shared
+
+    var lastFetchedLabel: String? {
+        guard let d = lastFetchedAt else { return nil }
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f.string(from: d)
+    }
 
     func load() async {
         guard !isLoading else { return }
@@ -20,6 +28,7 @@ final class DashboardViewModel: ObservableObject {
         error = nil
         do {
             overview = try await service.overview(platform: platformFilter?.rawValue)
+            lastFetchedAt = Date()
         } catch {
             self.error = (error as? APIError)?.errorDescription ?? error.localizedDescription
         }
@@ -96,12 +105,16 @@ struct DashboardView: View {
                             .foregroundStyle(.white.opacity(0.75))
                     }
                     Spacer()
-                    // 活跃圆点
+                    // 更新时间
                     HStack(spacing: 6) {
-                        Circle()
-                            .fill(AppTheme.Colors.success)
-                            .frame(width: 7, height: 7)
-                        Text("数据已更新")
+                        if vm.isLoading {
+                            ProgressView().scaleEffect(0.6).tint(.white)
+                        } else {
+                            Circle()
+                                .fill(AppTheme.Colors.success)
+                                .frame(width: 7, height: 7)
+                        }
+                        Text(vm.lastFetchedLabel.map { "更新于 \($0)" } ?? "数据已更新")
                             .font(.system(size: 11))
                             .foregroundStyle(.white.opacity(0.8))
                     }
@@ -161,22 +174,22 @@ struct DashboardView: View {
                 label: "总消耗"
             )
             DashStatCard(
-                icon: "person.2.fill",
-                color: AppTheme.Colors.primary,
-                value: "\(ov.activeAdvertisers)",
-                label: "活跃广告主"
+                icon: "cursorarrow.click.2",
+                color: .blue,
+                value: ov.totalClicks.statFormatted,
+                label: "总点击"
             )
             DashStatCard(
-                icon: "megaphone.fill",
-                color: Color(red: 0.49, green: 0.23, blue: 0.93),
-                value: "\(ov.campaignCount)",
-                label: "推广系列"
+                icon: "eye.fill",
+                color: .indigo,
+                value: ov.totalImpressions.statFormatted,
+                label: "总展示"
             )
             DashStatCard(
-                icon: "rectangle.stack.fill",
-                color: Color(red: 0.06, green: 0.67, blue: 0.67),
-                value: "\(ov.adGroupCount)",
-                label: "广告组"
+                icon: "star.fill",
+                color: .orange,
+                value: ov.totalConversions.statFormatted,
+                label: "总转化"
             )
         }
         .padding(.horizontal, AppTheme.Spacing.xl)

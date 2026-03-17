@@ -15,15 +15,29 @@ final class AdGroupListViewModel: ObservableObject {
     @Published var statusConfirmTarget: AdGroupItem? = nil
     @Published var updatingStatusID: UInt64?       = nil
 
+    // 汇总统计
+    @Published var dateFilter: DateRangeFilter = .last7Days {
+        didSet { Task { await loadSummary() } }
+    }
+    @Published var summary: StatsSummary? = nil
+    @Published var summaryLoading        = false
+
+    var lastUpdatedLabel: String? { summary?.updatedTimeLabel }
+
     private let advertiserID: UInt64
     private let campaignID: UInt64
-    private let service = AdDetailService.shared
+    private let service      = AdDetailService.shared
+    private let statsService = StatsService.shared
     private var page     = 1
     private let pageSize = 20
 
     init(advertiserID: UInt64, campaignID: UInt64 = 0) {
         self.advertiserID = advertiserID
         self.campaignID   = campaignID
+    }
+
+    private var summaryScope: (scope: String, id: UInt64) {
+        campaignID > 0 ? ("campaign", campaignID) : ("advertiser", advertiserID)
     }
 
     func load() async {
@@ -36,6 +50,7 @@ final class AdGroupListViewModel: ObservableObject {
             page    = 2
         } catch { self.error = message(error) }
         isLoading = false
+        await loadSummary()
     }
 
     func refresh() async {
@@ -46,6 +61,16 @@ final class AdGroupListViewModel: ObservableObject {
             hasMore = pagination.hasMore
             page    = 2
         } catch { self.error = message(error) }
+        await loadSummary()
+    }
+
+    func loadSummary() async {
+        summaryLoading = true
+        let r = dateFilter.dateRange
+        let s = summaryScope
+        summary = try? await statsService.summary(scope: s.scope, scopeID: s.id,
+                                                  dateFrom: r.from, dateTo: r.to)
+        summaryLoading = false
     }
 
     func loadMore() async {

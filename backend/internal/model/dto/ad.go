@@ -10,11 +10,22 @@ type AdListRequest struct {
 }
 
 type AdItem struct {
-	ID           uint64 `json:"id"`
-	AdID         string `json:"ad_id"`
-	AdName       string `json:"ad_name"`
-	AdgroupID    uint64 `json:"adgroup_id"`
-	AdgroupName  string `json:"adgroup_name"` // 关联查询后填入
-	Status       string `json:"status"`
-	CreativeType string `json:"creative_type"`
+	ID             uint64 `json:"id"`
+	AdID           string `json:"ad_id"`
+	AdName         string `json:"ad_name"`
+	AdgroupID      uint64 `json:"adgroup_id"`
+	AdgroupName    string `json:"adgroup_name"` // 关联查询后填入
+	AdvertiserID   uint64 `json:"advertiser_id"`
+	AdvertiserName string `json:"advertiser_name"`
+	Platform       string `json:"platform"`
+	Status         string `json:"status"`
+	CreativeType   string `json:"creative_type"`
+}
+
+// ── 全量广告列表请求 ────────────────────────────────────────────
+type AllAdListRequest struct {
+	Platform string `form:"platform"`
+	Keyword  string `form:"keyword"`
+	Page     int    `form:"page,default=1"`
+	PageSize int    `form:"page_size,default=20"`
 }

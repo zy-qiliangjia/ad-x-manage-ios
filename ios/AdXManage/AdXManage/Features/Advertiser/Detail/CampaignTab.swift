@@ -18,8 +18,18 @@ final class CampaignListViewModel: ObservableObject {
     // 正在更新状态的行（显示 spinner）
     @Published var updatingStatusID: UInt64? = nil
 
+    // 汇总统计
+    @Published var dateFilter: DateRangeFilter = .last7Days {
+        didSet { Task { await loadSummary() } }
+    }
+    @Published var summary: StatsSummary? = nil
+    @Published var summaryLoading        = false
+
+    var lastUpdatedLabel: String? { summary?.updatedTimeLabel }
+
     private let advertiserID: UInt64
-    private let service = AdDetailService.shared
+    private let service      = AdDetailService.shared
+    private let statsService = StatsService.shared
     private var page     = 1
     private let pageSize = 20
 
@@ -37,6 +47,7 @@ final class CampaignListViewModel: ObservableObject {
             page    = 2
         } catch { self.error = msg(error) }
         isLoading = false
+        await loadSummary()
     }
 
     func refresh() async {
@@ -47,6 +58,15 @@ final class CampaignListViewModel: ObservableObject {
             hasMore = pagination.hasMore
             page    = 2
         } catch { self.error = msg(error) }
+        await loadSummary()
+    }
+
+    func loadSummary() async {
+        summaryLoading = true
+        let r = dateFilter.dateRange
+        summary = try? await statsService.summary(scope: "advertiser", scopeID: advertiserID,
+                                                  dateFrom: r.from, dateTo: r.to)
+        summaryLoading = false
     }
 
     func loadMore() async {

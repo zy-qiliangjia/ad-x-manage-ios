@@ -14,6 +14,9 @@ type AdGroup struct {
 	BudgetMode   string    `gorm:"size:50;default:null"                                    json:"budget_mode"`
 	Budget       float64   `gorm:"type:decimal(18,2);not null;default:0"                   json:"budget"`
 	Spend        float64   `gorm:"type:decimal(18,2);not null;default:0"                   json:"spend"`
+	Clicks       int64     `gorm:"not null;default:0"                                      json:"clicks"`
+	Impressions  int64     `gorm:"not null;default:0"                                      json:"impressions"`
+	Conversions  int64     `gorm:"not null;default:0"                                      json:"conversions"`
 	BidType      string    `gorm:"size:50;default:null"                                    json:"bid_type"`
 	BidPrice     float64   `gorm:"type:decimal(18,4);default:null"                         json:"bid_price"`
 	CreatedAt    time.Time `                                                               json:"created_at"`

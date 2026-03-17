@@ -4,6 +4,7 @@ package kwai
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -406,6 +407,13 @@ func (c *Client) GetAds(accessToken, advertiserID, adGroupID string, page, pageS
 		})
 	}
 	return result, resp.TotalCount, nil
+}
+
+// ── 报表 ────────────────────────────────────────────────────────
+
+// GetReport Kwai 报表接口暂未接入，返回全零占位。
+func (c *Client) GetReport(_ context.Context, _, _, _, _ string) (*platform.ReportResult, error) {
+	return &platform.ReportResult{}, nil
 }
 
 // ── HTTP 工具方法 ───────────────────────────────────────────────

@@ -13,6 +13,7 @@ import (
 type Repository interface {
 	Upsert(ctx context.Context, ads []*entity.Ad) error
 	FindByAdvertiserID(ctx context.Context, advertiserID uint64, adgroupID uint64, keyword string, page, pageSize int) ([]*entity.Ad, int64, error)
+	FindByAdvertiserIDs(ctx context.Context, advertiserIDs []uint64, keyword string, page, pageSize int) ([]*entity.Ad, int64, error)
 	FindByID(ctx context.Context, id uint64) (*entity.Ad, error)
 }
 
@@ -61,4 +62,23 @@ func (r *repo) FindByID(ctx context.Context, id uint64) (*entity.Ad, error) {
 		return nil, nil
 	}
 	return &a, err
+}
+
+// FindByAdvertiserIDs 跨广告主分页查询广告列表，支持关键词搜索。
+func (r *repo) FindByAdvertiserIDs(ctx context.Context, advertiserIDs []uint64, keyword string, page, pageSize int) ([]*entity.Ad, int64, error) {
+	if len(advertiserIDs) == 0 {
+		return nil, 0, nil
+	}
+	q := r.db.WithContext(ctx).Model(&entity.Ad{}).Where("advertiser_id IN ?", advertiserIDs)
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		q = q.Where("ad_name LIKE ? OR ad_id LIKE ?", like, like)
+	}
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var list []*entity.Ad
+	err := q.Order("id DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&list).Error
+	return list, total, err
 }

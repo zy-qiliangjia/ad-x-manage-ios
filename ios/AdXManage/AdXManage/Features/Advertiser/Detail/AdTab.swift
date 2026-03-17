@@ -13,9 +13,19 @@ final class AdListViewModel: ObservableObject {
 
     @Published var searchText = "" { didSet { scheduleSearch() } }
 
+    // 汇总统计（当有 adgroupID 时加载）
+    @Published var dateFilter: DateRangeFilter = .last7Days {
+        didSet { if adgroupID > 0 { Task { await loadSummary() } } }
+    }
+    @Published var summary: StatsSummary? = nil
+    @Published var summaryLoading        = false
+
+    var lastUpdatedLabel: String? { summary?.updatedTimeLabel }
+
     private let advertiserID: UInt64
-    private let adgroupID: UInt64
-    private let service = AdDetailService.shared
+    let adgroupID: UInt64
+    private let service      = AdDetailService.shared
+    private let statsService = StatsService.shared
     private var page     = 1
     private let pageSize = 20
     private var searchTask: Task<Void, Never>? = nil
@@ -36,6 +46,7 @@ final class AdListViewModel: ObservableObject {
             page    = 2
         } catch { self.error = message(error) }
         isLoading = false
+        await loadSummary()
     }
 
     func refresh() async {
@@ -47,6 +58,16 @@ final class AdListViewModel: ObservableObject {
             hasMore = pagination.hasMore
             page    = 2
         } catch { self.error = message(error) }
+        await loadSummary()
+    }
+
+    func loadSummary() async {
+        guard adgroupID > 0 else { return }
+        summaryLoading = true
+        let r = dateFilter.dateRange
+        summary = try? await statsService.summary(scope: "adgroup", scopeID: adgroupID,
+                                                  dateFrom: r.from, dateTo: r.to)
+        summaryLoading = false
     }
 
     func loadMore() async {

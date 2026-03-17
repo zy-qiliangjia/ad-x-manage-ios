@@ -86,7 +86,7 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 	operationLogService := operationlogsvc.New(logRepo, advRepo)
 
 	// Dashboard: 统计概览
-	statsService := statssvc.New(db)
+	statsService := statssvc.New(db, platformClients, tokenRepo, cfg.App.EncryptKey, log)
 
 	// ── Handlers ──────────────────────────────────────────
 	authHandler := authhandler.New(authService)
@@ -151,19 +151,25 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 			advGroup.GET("/:id/ads", adHandler.List)
 		}
 
-		// B6: 推广系列写操作
+		// B6: 推广系列全量列表 + 写操作
+		protected.GET("/campaigns", campaignHandler.ListAll)
 		protected.PATCH("/campaigns/:id/budget", campaignHandler.UpdateBudget)
 		protected.PATCH("/campaigns/:id/status", campaignHandler.UpdateStatus)
 
-		// B7: 广告组写操作
+		// B7: 广告组全量列表 + 写操作
+		protected.GET("/adgroups", adGroupHandler.ListAll)
 		protected.PATCH("/adgroups/:id/budget", adGroupHandler.UpdateBudget)
 		protected.PATCH("/adgroups/:id/status", adGroupHandler.UpdateStatus)
+
+		// B8: 广告全量列表
+		protected.GET("/ads", adHandler.ListAll)
 
 		// B9: 操作日志
 		protected.GET("/operation-logs", operationLogHandler.List)
 
-		// Dashboard: 统计概览
+		// Dashboard + 广告汇总统计
 		protected.GET("/stats", statsHandler.Overview)
+		protected.GET("/stats/summary", statsHandler.Summary)
 	}
 
 	return r

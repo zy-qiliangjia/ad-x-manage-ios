@@ -9,12 +9,38 @@ final class StatsService {
 
     private let client = APIClient.shared
 
-    func overview(platform: String? = nil) async throws -> StatsOverview {
-        var params: [String: String] = [:]
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    /// 近7天日期范围（startDate, endDate）
+    static func last7DaysRange() -> (startDate: String, endDate: String) {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let start = cal.date(byAdding: .day, value: -6, to: today)!
+        return (dateFormatter.string(from: start), dateFormatter.string(from: today))
+    }
+
+    func overview(platform: String? = nil, startDate: String? = nil, endDate: String? = nil) async throws -> StatsOverview {
+        let range = Self.last7DaysRange()
+        var params: [String: String] = [
+            "start_date": startDate ?? range.startDate,
+            "end_date":   endDate   ?? range.endDate
+        ]
         if let p = platform, !p.isEmpty { params["platform"] = p }
-        return try await client.request(
-            .stats,
-            queryParams: params.isEmpty ? nil : params
-        )
+        return try await client.request(.stats, queryParams: params)
+    }
+
+    /// 按层级聚合指标：scope = "advertiser" | "campaign" | "adgroup"
+    func summary(scope: String, scopeID: UInt64, dateFrom: String? = nil, dateTo: String? = nil) async throws -> StatsSummary {
+        var params: [String: String] = [
+            "scope":    scope,
+            "scope_id": "\(scopeID)"
+        ]
+        if let from = dateFrom, !from.isEmpty { params["date_from"] = from }
+        if let to   = dateTo,   !to.isEmpty   { params["date_to"]   = to }
+        return try await client.request(.statsSummary, queryParams: params)
     }
 }

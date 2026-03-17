@@ -10,6 +10,9 @@ struct CampaignItem: Decodable, Identifiable, Hashable {
     let budgetMode: String
     let budget: Double
     let spend: Double
+    let clicks: Int
+    let impressions: Int
+    let conversions: Int
     let objective: String
     let advertiserID: UInt64
     let advertiserName: String
@@ -23,6 +26,9 @@ struct CampaignItem: Decodable, Identifiable, Hashable {
         case budgetMode    = "budget_mode"
         case budget
         case spend
+        case clicks
+        case impressions
+        case conversions
         case objective
         case advertiserID  = "advertiser_id"
         case advertiserName = "advertiser_name"
@@ -38,6 +44,9 @@ struct CampaignItem: Decodable, Identifiable, Hashable {
         budgetMode     = (try? c.decodeIfPresent(String.self, forKey: .budgetMode)) ?? ""
         budget         = (try? c.decodeIfPresent(Double.self, forKey: .budget))     ?? 0
         spend          = (try? c.decodeIfPresent(Double.self, forKey: .spend))      ?? 0
+        clicks         = (try? c.decodeIfPresent(Int.self, forKey: .clicks))        ?? 0
+        impressions    = (try? c.decodeIfPresent(Int.self, forKey: .impressions))   ?? 0
+        conversions    = (try? c.decodeIfPresent(Int.self, forKey: .conversions))   ?? 0
         objective      = (try? c.decodeIfPresent(String.self, forKey: .objective))  ?? ""
         advertiserID   = (try? c.decodeIfPresent(UInt64.self, forKey: .advertiserID))   ?? 0
         advertiserName = (try? c.decodeIfPresent(String.self, forKey: .advertiserName)) ?? ""
@@ -58,6 +67,9 @@ struct AdGroupItem: Decodable, Identifiable, Hashable {
     let spend: Double
     let bidType: String
     let bidPrice: Double
+    let clicks: Int
+    let impressions: Int
+    let conversions: Int
     let advertiserID: UInt64
     let advertiserName: String
     let platform: String
@@ -73,6 +85,9 @@ struct AdGroupItem: Decodable, Identifiable, Hashable {
         case spend
         case bidType      = "bid_type"
         case bidPrice     = "bid_price"
+        case clicks
+        case impressions
+        case conversions
         case advertiserID  = "advertiser_id"
         case advertiserName = "advertiser_name"
         case platform
@@ -90,6 +105,9 @@ struct AdGroupItem: Decodable, Identifiable, Hashable {
         spend          = (try? c.decodeIfPresent(Double.self, forKey: .spend))      ?? 0
         bidType        = (try? c.decodeIfPresent(String.self, forKey: .bidType))    ?? ""
         bidPrice       = (try? c.decodeIfPresent(Double.self, forKey: .bidPrice))   ?? 0
+        clicks         = (try? c.decodeIfPresent(Int.self, forKey: .clicks))        ?? 0
+        impressions    = (try? c.decodeIfPresent(Int.self, forKey: .impressions))   ?? 0
+        conversions    = (try? c.decodeIfPresent(Int.self, forKey: .conversions))   ?? 0
         advertiserID   = (try? c.decodeIfPresent(UInt64.self, forKey: .advertiserID))   ?? 0
         advertiserName = (try? c.decodeIfPresent(String.self, forKey: .advertiserName)) ?? ""
         platform       = (try? c.decodeIfPresent(String.self, forKey: .platform))       ?? ""

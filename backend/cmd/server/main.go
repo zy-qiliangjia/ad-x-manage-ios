@@ -31,7 +31,7 @@ func main() {
 	defer log.Sync() //nolint:errcheck
 
 	// 3. 初始化 MySQL
-	db, err := database.New(&cfg.DB)
+	db, err := database.New(&cfg.DB, log)
 	if err != nil {
 		log.Fatal("database init failed", zap.Error(err))
 	}

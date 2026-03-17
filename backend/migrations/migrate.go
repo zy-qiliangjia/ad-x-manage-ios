@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"go.uber.org/zap"
+
 	"ad-x-manage/backend/internal/config"
 	"ad-x-manage/backend/internal/model/entity"
 	"ad-x-manage/backend/internal/pkg/database"
@@ -16,7 +18,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	db, err := database.New(&cfg.DB)
+	db, err := database.New(&cfg.DB, zap.NewNop())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "database init error: %v\n", err)
 		os.Exit(1)

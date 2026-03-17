@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AdPilot 页面总览 & 交互流程</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --primary: #4F46E5; --primary-light: #818CF8; --primary-bg: #EEF2FF;
+    --success: #10B981; --warning: #F59E0B; --danger: #EF4444;
+    --meta: #1877F2; --tiktok: #FE2C55;
+    --text: #1F2937; --text-s: #6B7280; --border: #E5E7EB;
+    --bg: #F9FAFB; --card: #FFFFFF;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0F172A; color: #E2E8F0; padding: 40px 20px; min-height: 100vh; }
+  h1 { text-align: center; font-size: 28px; font-weight: 700; margin-bottom: 8px; background: linear-gradient(135deg, #818CF8, #6366F1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .subtitle { text-align: center; color: #94A3B8; font-size: 14px; margin-bottom: 40px; }
+
+  .flow-section { max-width: 1400px; margin: 0 auto 60px; }
+  .flow-title { font-size: 20px; font-weight: 600; margin-bottom: 6px; color: #C7D2FE; }
+  .flow-desc { font-size: 13px; color: #94A3B8; margin-bottom: 24px; }
+
+  .flow-row { display: flex; align-items: flex-start; gap: 0; justify-content: center; flex-wrap: wrap; margin-bottom: 36px; }
+  .flow-arrow { display: flex; align-items: center; justify-content: center; min-width: 60px; padding-top: 280px; color: #6366F1; font-size: 28px; font-weight: bold; flex-shrink: 0; }
+  .flow-label { display: block; font-size: 10px; color: #94A3B8; margin-top: 2px; white-space: nowrap; }
+
+  .phone-wrap { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+  .phone-label { font-size: 13px; font-weight: 600; color: #C7D2FE; margin-bottom: 10px; text-align: center; }
+  .phone-label .num { display: inline-block; background: var(--primary); color: white; border-radius: 50%; width: 22px; height: 22px; line-height: 22px; text-align: center; font-size: 11px; margin-right: 6px; }
+  .phone { width: 280px; height: 560px; border-radius: 32px; border: 3px solid #334155; background: var(--bg); overflow: hidden; position: relative; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+  .phone-inner { width: 100%; height: 100%; overflow-y: auto; font-size: 12px; color: var(--text); }
+  .phone-inner::-webkit-scrollbar { width: 0; }
+
+  .p-header { background: white; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+  .p-header h3 { font-size: 15px; font-weight: 700; color: var(--text); }
+  .p-header .back { font-size: 16px; color: var(--text-s); }
+  .p-tabs { display: flex; background: white; border-bottom: 1px solid var(--border); }
+  .p-tab { flex: 1; text-align: center; padding: 8px 4px; font-size: 11px; color: var(--text-s); border-bottom: 2px solid transparent; }
+  .p-tab.active { color: var(--primary); border-bottom-color: var(--primary); font-weight: 600; }
+  .p-card { background: white; margin: 8px 12px; border-radius: 12px; padding: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  .p-badge { display: inline-block; font-size: 9px; padding: 2px 6px; border-radius: 10px; font-weight: 600; }
+  .p-badge.meta { background: #EBF5FF; color: var(--meta); }
+  .p-badge.tiktok { background: #FFF1F2; color: var(--tiktok); }
+  .p-badge.active { background: #D1FAE5; color: #059669; }
+  .p-btn { display: block; margin: 10px 12px; padding: 10px; text-align: center; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .p-btn.primary { background: var(--primary); color: white; }
+  .p-btn.outline { border: 1.5px dashed var(--border); color: var(--text-s); background: white; }
+  .p-btn.invite { border: 1.5px solid var(--primary); color: var(--primary); background: white; }
+  .p-input { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 11px; background: var(--bg); color: var(--text); margin-bottom: 6px; }
+  .p-nav { position: absolute; bottom: 0; left: 0; right: 0; display: flex; background: white; border-top: 1px solid var(--border); padding: 6px 0 10px; }
+  .p-nav-item { flex: 1; text-align: center; font-size: 9px; color: var(--text-s); }
+  .p-nav-item .icon { font-size: 16px; display: block; margin-bottom: 1px; }
+  .p-nav-item.active { color: var(--primary); }
+  .p-progress-wrap { height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; margin: 4px 0; }
+  .p-progress { height: 100%; border-radius: 3px; }
+  .p-progress.meta { background: linear-gradient(90deg, #1877F2, #42A5F5); }
+  .p-progress.tiktok { background: linear-gradient(90deg, #FE2C55, #FF6B8A); }
+  .p-toggle { width: 32px; height: 18px; border-radius: 9px; display: inline-block; vertical-align: middle; position: relative; }
+  .p-toggle.on { background: var(--success); }
+  .p-toggle.off { background: #D1D5DB; }
+  .p-toggle::after { content: ''; position: absolute; top: 2px; width: 14px; height: 14px; border-radius: 50%; background: white; }
+  .p-toggle.on::after { right: 2px; }
+  .p-toggle.off::after { left: 2px; }
+
+  .legend { max-width: 1400px; margin: 0 auto 40px; padding: 20px; background: #1E293B; border-radius: 12px; }
+  .legend-title { font-size: 14px; font-weight: 600; color: #C7D2FE; margin-bottom: 12px; }
+  .legend-items { display: flex; flex-wrap: wrap; gap: 16px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94A3B8; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .legend-dot.auth { background: #F59E0B; }
+  .legend-dot.main { background: #6366F1; }
+  .legend-dot.sub { background: #10B981; }
+  .legend-dot.modal { background: #EC4899; }
+</style>
+</head>
+<body>
+
+<h1>AdPilot 页面总览 & 交互流程</h1>
+<p class="subtitle">所有页面状态一览 · 页面间交互关系 · v1.1 · 2026-03-17</p>
+
+<div class="legend">
+  <div class="legend-title">图例</div>
+  <div class="legend-items">
+    <div class="legend-item"><div class="legend-dot auth"></div>认证流程页面</div>
+    <div class="legend-item"><div class="legend-dot main"></div>主 Tab 页面</div>
+    <div class="legend-item"><div class="legend-dot sub"></div>子页面</div>
+    <div class="legend-item"><div class="legend-dot modal"></div>弹窗 / Modal</div>
+    <div class="legend-item"><span style="color:#6366F1;font-weight:bold;">→</span> 页面跳转方向</div>
+  </div>
+</div>
+
+<!-- ═══════════ SECTION 1: AUTH FLOW ═══════════ -->
+<div class="flow-section">
+  <div class="flow-title">🔐 认证流程（新用户注册路径）</div>
+  <div class="flow-desc">登录 → 直接进入主页 ｜ 注册 → 必须添加客服（DeepLink 回调）→ 才能进入主页</div>
+
+  <div class="flow-row">
+    <!-- 1 Login -->
+    <div class="phone-wrap">
+      <div class="phone-label"><span class="num">1</span>登录页</div>
+      <div class="phone">
+        <div class="phone-inner">
+          <div style="padding:60px 20px 20px;text-align:center;">
+            <div style="font-size:36px;margin-bottom:8px;">📊</div>
+            <div style="font-size:22px;font-weight:800;color:var(--primary);">AdPilot</div>
+            <div style="font-size:11px;color:var(--text-s);margin:4px 0 30px;">智能广告管理助手</div>
+            <input class="p-input" placeholder="邮箱地址" value="demo@adpilot.com" readonly>
+            <input class="p-input" type="password" placeholder="密码" value="••••••••" readonly>
+            <div class="p-btn primary" style="margin:16px 0 12px;">登 录</div>
+            <div style="font-size:11px;color:var(--text-s);">还没有账号？<span style="color:var(--primary);font-weight:600;">立即注册</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-arrow">→<br><span class="flow-label">切换</span></div>
+
+    <!-- 2 Register -->
+    <div class="phone-wrap">
+      <div class="phone-label"><span class="num">2</span>注册页</div>
+      <div class="phone">
+        <div class="phone-inner">
+          <div style="padding:60px 20px 20px;text-align:center;">
+            <div style="font-size:36px;margin-bottom:8px;">📊</div>
+            <div style="font-size:22px;font-weight:800;color:var(--primary);">AdPilot</div>
+            <div style="font-size:11px;color:var(--text-s);margin:4px 0 30px;">创建您的账号</div>
+            <input class="p-input" placeholder="邮箱地址" value="demo@adpilot.com" readonly>
+            <input class="p-input" type="password" placeholder="密码" value="••••••••" readonly>
+            <input class="p-input" placeholder="邀请码（选填）" readonly>
+            <div class="p-btn primary" style="margin:16px 0 12px;">注 册</div>
+            <div style="font-size:11px;color:var(--text-s);">已有账号？<span style="color:var(--primary);font-weight:600;">返回登录</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-arrow">→<br><span class="flow-label">注册成功</span></div>
+
+    <!-- 3 Contact Bind -->
+    <div class="phone-wrap">
+      <div class="phone-label"><span class="num">3</span>添加客服（拦截门）</div>
+      <div class="phone">
+        <div class="phone-inner">
+          <div style="padding:40px 16px 20px;text-align:center;">
+            <div style="font-size:32px;margin-bottom:6px;">🎉</div>
+            <div style="font-size:17px;font-weight:700;color:var(--text);">添加客服，获取使用教程</div>
+            <div style="font-size:11px;color:var(--text-s);margin:6px 0 16px;">添加专属客服后即可开始使用 AdPilot</div>
+            <div style="display:flex;gap:8px;margin-bottom:16px;">
+              <div style="flex:1;padding:12px 8px;background:var(--primary-bg);border-radius:10px;border:2px solid var(--primary);">
+                <div style="font-size:20px;">📱</div>
+                <div style="font-size:11px;font-weight:600;color:var(--primary);margin-top:4px;">跨平台数据分析</div>
+              </div>
+              <div style="flex:1;padding:12px 8px;background:#FEF3C7;border-radius:10px;border:2px solid #F59E0B;">
+                <div style="font-size:20px;">💰</div>
+                <div style="font-size:11px;font-weight:600;color:#92400E;margin-top:4px;">智能预算优化</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <div style="flex:1;padding:10px;background:white;border-radius:10px;border:1.5px solid #10B981;text-align:center;">
+                <div style="font-size:16px;">💬</div>
+                <div style="font-size:12px;font-weight:600;color:#10B981;margin-top:4px;">微信添加</div>
+              </div>
+              <div style="flex:1;padding:10px;background:white;border-radius:10px;border:1.5px solid #3B82F6;text-align:center;">
+                <div style="font-size:16px;">✈️</div>
+                <div style="font-size:12px;font-weight:600;color:#3B82F6;margin-top:4px;">Telegram 添加</div>
+              </div>
+            </div>
+            <div style="margin-top:20px;padding:14px;background:#F0FDF4;border-radius:10px;">
+              <div style="font-size:20px;">⏳</div>
+              <div style="font-size:11px;color:#059669;margin-top:4px;">已跳转添加客服<br>等待 DeepLink 回调...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-arrow">→<br><span class="flow-label">DeepLink<br>回调</span></div>
+
+    <!-- 4 Enter App -->
+    <div class="phone-wrap">
+      <div class="phone-label"><span class="num">4</span>进入主页</div>
+      <div class="phone">
+        <div class="phone-inner">
+          <div style="text-align:center;padding-top:200px;">
+            <div style="font-size:48px;">✅</div>
+            <div style="font-size:16px;font-weight:700;color:var(--primary);margin-top:12px;">认证完成</div>
+            <div style="font-size:12px;color:var(--text-s);margin-top:6px;">进入数据首页 ↓</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SECTION 2: MAIN TAB PAGES ═══════════ -->
+<div class="flow-section">
+  <div class="flow-title">📱 主 Tab 页面（底部导航栏）</div>
+  <div class="flow-desc">导航顺序：数据 → 广告 → 账号 → 设置 ｜ 四个页面平级切换</div>
+
+  <div class="flow-row">
+    <!-- 5 Home -->
+    <div class="phone-wrap">
+      <div class="phone-label"><span class="num">5</span>数据首页</div>
+      <div class="phone">
+        <div class="phone-inner" style="padding-bottom:50px;">
+          <div class="p-header">
+            <h3>📊 AdPilot</h3>
+            <span style="font-size:11px;color:var(--primary);font-weight:600;">近7天 ▾</span>
+          </div>
+          <div class="p-tabs">
+            <div class="p-tab active">全部</div>
+            <div class="p-tab">Meta</div>
+            <div class="p-tab">TikTok</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px;">
+            <div class="p-card" style="margin:0;text-align:center;">
+              <div style="font-size:10px;color:var(--text-s);">总消耗</div>
+              <div style="font-size:16px;font-weight:700;margin:2px 0;">$12,450</div>
+              <div style="font-size:10px;color:var(--success);">↑ 12.5%</div>
+            </div>
+            <div class="p-card" style="margin:0;text-align:center;">
+              <div style="font-size:10px;color:var(--text-s);">总点击</div>
+              <div style="font-size:16px;font-weight:700;margin:2px 0;">45,230</div>
+              <div style="font-size:10px;color:var(--success);">↑ 8.3%</div>
+            </div>
+            <div class="p-card" style="margin:0;text-align:center;">
+              <div style="font-size:10px;color:var(--text-s);">总展示</div>
+              <div style="font-size:16px;font-weight:700;margin:2px 0;">580K</div>
+              <div style="font-size:10px;color:var(--danger);">↓ 3.2%</div>
+            </div>
+            <div class="p-card" style="margin:0;text-align:center;">
+              <div style="font-size:10px;color:var(--text-s);">总转化</div>
+              <div style="font-size:16px;font-weight:700;margin:2px 0;">1,280</div>
+              <div style="font-size:10px;color:var(--success);">↑ 15.1%</div>
+            </div>
+          </div>
+          <div style="padding:4px 12px;font-size:9px;color:var(--text-s);display:flex;align-items:center;gap:4px;">
+            <span style="width:5px;height:5px;border-radius:50%;background:var(--success);display:inline-block;"></span>
+            数据更新于 10:30
+          </div>
+          <div class="p-card">
+            <div style="display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap;">
+              <span style="font-size:9px;padding:2px 6px;background:var(--primary);color:white;border-radius:8px;">消耗</span>
+              <span style="font-size:9px;padding:2px 6px;background:var(--bg);color:var(--text-s);border-radius:8px;">点击</span>
+              <span style="font-size:9px;padding:2px 6px;background:var(--bg);color:var(--text-s);border-radius:8px;">展示</span>
+              <span style="font-size:9px;padding:2px 6px;background:var(--bg);color:var(--text-s);border-radius:8px;">CTR</span>
+              <span style="font-size:9px;padding:2px 6px;background:var(--bg);color:var(--text-s);border-radius:8px;">CPC</span>
+            </div>
+            <div style="display:flex;align-items:flex-end;gap:6px;height:80px;padding:4px 0;">
+              <div style="flex:1;background:linear-gradient(180deg,var(--primary-light),var(--primary));border-radius:4px 4px 0 0;height:60%;"></div>
+              <div style="flex:1;background:linear-gradient(180deg,var(--primary-light),var(--primary));border-radius:4px 4px 0 0;height:75%;"></div>
+              <div style="flex:1;background:linear-gradient(180deg,var(--primary-light),var(--primary));border-radius:4px 4px 0 0;height:45%;"></div>
+              <div style="flex:1;background:linear-gradient(180deg,var(--primary-light),var(--primary));border-radius:4px 4px 0 0;height:90%;"></div>
+              <div style="flex:1;background:linear-gradient(180deg,var(--primary-light),var(--primary));border-radius:4px 4px 0 0;height:55%;"></div>
+              <div style="flex:1;background:linear-gradient(180deg,var(--primary-light),var(--primary));border-radius:4px 4px 0 0;height:82%;"></div>
+              <div style="flex:1;background:linear-gradient(180deg,var(--primary-light),var(--primary));border-radius:4px 4px 0 0;height:70%;"></div>
+            </div>
+          </div>
+          <div class="p-nav">
+            <div class="p-nav-item active"><span class="icon">📊</span>数据</div>
+            <div class="p-nav-item"><span class="icon">📋</span>广告</div>
+            <div class="p-nav-item"><span class="icon">👤</span>账号</div>
+            <div class="p-nav-item"><span class="icon">⚙️</span>设置</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-arrow" style="padding-top:280px;">⇄</div>
+
+    <!-- 6 Ads -->
+    <div class="phone-wrap">
+      <div class="phone-label"><span class="num">6</span>广告管理</div>
+      <div class="phone">
+        <div class="phone-inner" style="padding-bottom:50px;">
+          <div class="p-header">
+            <span class="back">←</span>
+            <h3>广告管理</h3>
+            <span style="font-size:11px;color:var(--primary);font-weight:600;">近7天 ▾</span>
+          </div>
+          <div class="p-tabs">
+            <div class="p-tab active">广告账号 <span style="background:var(--primary-bg);color:var(--primary);padding:0 4px;border-radius:8px;font-size:9px;">5</span></div>
+            <div class="p-tab">广告系列</div>
+            <div class="p-tab">广告组</div>
+            <div class="p-tab">广告</div>
+          </div>
+          <div style="padding:4px 12px;font-size:9px;color:var(--text-s);">默认按消耗降序排列</div>
+          <div class="p-card" style="background:var(--primary-bg);">
+            <div style="font-size:10px;color:var(--primary);font-weight:600;margin-bottom:4px;">全部 · 近7天汇总</div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;">
+              <div style="text-align:center;"><div style="font-weight:700;font-size:13px;color:var(--text);">$8,450</div><div style="color:var(--text-s);">消耗</div></div>
+              <div style="text-align:center;"><div style="font-weight:700;font-size:13px;color:var(--text);">32K</div><div style="color:var(--text-s);">点击</div></div>
+              <div style="text-align:center;"><div style="font-weight:700;font-size:13px;color:var(--text);">420K</div><div style="color:var(--text-s);">展示</div></div>
+              <div style="text-align:center;"><div style="font-weight:700;font-size:13px;color:var(--text);">960</div><div style="color:var(--text-s);">转化</div></div>
+            </div>
+          </div>
+          <div style="padding:0 12px;"><input class="p-input" placeholder="🔍 搜索广告账号..." readonly></div>
+          <div class="p-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <div>
+                <span class="p-badge meta">Meta</span>
+                <span style="font-size:12px;font-weight:600;margin-left:4px;">Brand Awareness</span>
+              </div>
+              <div class="p-toggle on"></div>
+            </div>
+            <div style="font-size:9px;color:var(--text-s);margin-bottom:6px;">ID: act_1001</div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-s);">
+              <span>消耗 <b style="color:var(--text);">$3,200</b></span>
+              <span>点击 <b style="color:var(--text);">12.5K</b></span>
+              <span>转化 <b style="color:var(--text);">380</b></span>
+            </div>
+            <div style="margin-top:6px;font-size:10px;color:var(--primary);">包含 3 个广告系列，点击查看 →</div>
+          </div>
+          <div class="p-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <div>
+                <span class="p-badge tiktok">TikTok</span>
+                <span style="font-size:12px;font-weight:600;margin-left:4px;">US Retarget</span>
+              </div>
+              <div class="p-toggle on"></div>
+            </div>
+            <div style="font-size:9px;color:var(--text-s);margin-bottom:6px;">ID: adv_2001</div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-s);">
+              <span>消耗 <b style="color:var(--text);">$2,800</b></span>
+              <span>点击 <b style="color:var(--text);">9.8K</b></span>
+              <span>转化 <b style="color:var(--text);">290</b></span>
+            </div>
+            <div style="margin-top:6px;font-size:10px;color:var(--primary);">包含 2 个广告系列，点击查看 →</div>
+          </div>
+          <div class="p-nav">
+            <div class="p-nav-item"><span class="icon">📊</span>数据</div>
+            <div class="p-nav-item active"><span class="icon">📋</span>广告</div>
+            <div class="p-nav-item"><span class="icon">👤</span>账号</div>
+            <div class="p-nav-item"><span class="icon">⚙️</span>设置</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-arrow" style="padding-top:280px;">⇄</div>
+
+    <!-- 7 Accounts -->
+    <div class="phone-wrap">
+      <div class="phone-label"><span class="num">7</span>广告账号管理</div>
+      <div class="phone">
+        <div class="phone-inner" style="padding-bottom:50px;">
+          <div class="p-header">
+            <span class="back">←</span>
+            <h3>广告账号管理</h3>
+            <span style="width:28px"></span>
+          </div>
+          <div class="p-card">
+            <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px;">
+              <span><span class="p-badge meta">Meta</span> 已用 2/5</span>
+              <span style="color:var(--text-s);">40%</span>
+            </div>
+            <div class="p-progress-wrap"><div class="p-progress meta" style="width:40%"></div></div>
+            <div style="display:flex;justify-content:space-between;font-size:10px;margin:6px 0 2px;">
+              <span><span class="p-badge tiktok">TikTok</span> 已用 1/5</span>
+              <span style="color:var(--text-s);">20%</span>
+            </div>
+            <div class="p-progress-wrap"><div class="p-progress tiktok" style="width:20%"></div></div>
+          </div>
+          <!-- Buttons above list -->
+          <div style="display:flex;gap:6px;padding:0 12px;margin-bottom:8px;">
+            <div class="p-btn outline" style="flex:1;margin:0;padding:8px;font-size:11px;">＋ 添加广告账号</div>
+            <div class="p-btn invite" style="flex:1;margin:0;padding:8px;font-size:10px;">🎁 邀请好友，获得更多额度</div>
+          </div>
+          <div class="p-card">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:32px;height:32px;border-radius:10px;background:var(--meta);display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:12px;">M</div>
+              <div style="flex:1;">
+                <div style="font-size:12px;font-weight:600;">Brand Awareness</div>
+                <div style="font-size:9px;color:var(--text-s);">act_1001</div>
+              </div>
+              <span class="p-badge active">活跃</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:10px;color:var(--text-s);">
+              <span>消耗 <b style="color:var(--text);">$3,200</b></span>
+              <span>系列 <b style="color:var(--text);">3</b></span>
+              <span>CTR <b style="color:var(--text);">2.3%</b></span>
+            </div>
+          </div>
+          <div class="p-card">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:32px;height:32px;border-radius:10px;background:var(--tiktok);display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;font-size:12px;">T</div>
+              <div style="flex:1;">
+                <div style="font-size:12px;font-weight:600;">US Retarget</div>
+                <div style="font-size:9px;color:var(--text-s);">adv_2001</div>
+              </div>
+              <span class="p-badge active">活跃</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:10px;color:var(--text-s);">
+              <span>消耗 <b style="color:var(--text);">$2,800</b></span>
+              <span>系列 <b style="color:var(--text);">2</b></span>
+              <span>CTR <b style="color:var(--text);">3.1%</b></span>
+            </div>
+          </div>
+          <div class="p-nav">
+            <div class="p-nav-item"><span class="icon">📊</span>数据</div>
+            <div class="p-nav-item"><span class="icon">📋</span>广告</div>
+            <div class="p-nav-item active"><span class="icon">👤</span>账号</div>
+            <div class="p-nav-item"><span class="icon">⚙️</span>设置</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-arrow" style="padding-top:280px;">⇄</div>
+
+    <!-- 8 Settings -->
+    <div class="phone-wrap">
+      <div class="phone-label"><span class="num">8</span>设置</div>
+      <div class="phone">
+        <div class="phone-inner" style="padding-bottom:50px;">
+          <div class="p-header">
+            <span style="width:28px"></span>
+            <h3>设置</h3>
+            <span style="width:28px"></span>
+          </div>
+          <div class="p-card" style="text-align:center;">
+            <div style="width:48px;height:48px;border-radius:14px;background:var(--primary);margin:0 auto 6px;display:flex;align-items:center;justify-content:center;color:white;font-size:18px;font-weight:700;">D</div>
+            <div style="font-size:13px;font-weight:600;">Demo 用户</div>
+            <div style="font-size:10px;color:var(--text-s);">demo@adpilot.com</div>
+            <div style="margin-top:4px;"><span class="p-badge active">已绑定客服</span></div>
+          </div>
+          <div class="p-card">
+            <div style="font-size:11px;font-weight:600;margin-bottom:6px;">账号配额</div>
+            <div style="font-size:10px;display:flex;justify-content:space-between;margin-bottom:2px;">
+              <span>Meta 已用 2/5</span><span style="color:var(--text-s);">40%</span>
+            </div>
+            <div class="p-progress-wrap"><div class="p-progress meta" style="width:40%"></div></div>
+            <div style="font-size:10px;display:flex;justify-content:space-between;margin:4px 0 2px;">
+              <span>TikTok 已用 1/5</span><span style="color:var(--text-s);">20%</span>
+            </div>
+            <div class="p-progress-wrap"><div class="p-progress tiktok" style="width:20%"></div></div>
+          </div>
+          <div class="p-card" style="padding:0;">
+            <div style="padding:10px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);">
+              <div style="display:flex;align-items:center;gap:8px;"><span>👤</span><span style="font-size:12px;">广告账号管理</span></div>
+              <span style="color:var(--text-s);">›</span>
+            </div>
+            <div style="padding:10px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);">
+              <div style="display:flex;align-items:center;gap:8px;"><span>🎁</span><span style="font-size:12px;">邀请好友</span></div>
+              <span style="color:var(--text-s);">›</span>
+            </div>
+            <div style="padding:10px 12px;display:flex;align-items:center;justify-content:space-between;">
+              <div style="display:flex;align-items:center;gap:8px;"><span>🚪</span><span style="font-size:12px;color:var(--danger);">退出登录</span></div>
+              <span style="color:var(--text-s);">›</span>
+            </div>
+          </div>
+          <div class="p-nav">
+            <div class="p-nav-item"><span class="icon">📊</span>数据</div>
+            <div class="p-nav-item"><span class="icon">📋</span>广告</div>
+            <div class="p-nav-item"><span class="icon">👤</span>账号</div>
+            <div class="p-nav-item active"><span class="icon">⚙️</span>设置</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SECTION 3: SUB PAGES & MODALS ═══════════ -->
+<div class="flow-section">
+  <div class="flow-title">📄 子页面 & 弹窗</div>
+  <div class="flow-desc">从主 Tab 页触发的子级页面和弹窗</div>
+
+  <div class="flow-row">
+    <!-- 9 Invite -->
+    <div class="phone-wrap">
+      <div class="phone-label"><span class="num">9</span>邀请好友</div>
+      <div class="phone">
+        <div class="phone-inner">
+          <div class="p-header">
+            <span class="back">←</span>
+            <h3>邀请好友</h3>
+            <span style="width:28px"></span>
+          </div>
+          <div class="p-card" style="text-align:center;background:linear-gradient(135deg,#EEF2FF,#E0E7FF);">
+            <div style="font-size:28px;margin-bottom:4px;">🎁</div>
+            <div style="font-size:14px;font-weight:700;color:var(--text);">邀请好友，扩展账号额度</div>
+            <div style="font-size:10px;color:var(--text-s);margin:4px 0 10px;">每成功邀请 1 位新用户注册，<br>你和好友各获得 <b>+5 个广告账号</b>额度</div>
+            <div style="background:#FBBF24;color:#92400E;padding:4px 10px;border-radius:8px;font-size:10px;font-weight:600;display:inline-block;">🎯 每邀请 1 人 = +5 额度</div>
+            <!-- Invite code -->
+            <div style="margin-top:12px;font-size:10px;color:var(--text-s);">我的邀请码</div>
+            <div style="display:flex;gap:6px;margin-top:4px;">
+              <div style="flex:1;padding:8px;background:white;border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:600;color:var(--text);font-family:monospace;">ADPa3xK</div>
+              <div style="padding:8px 12px;background:var(--primary);color:white;border-radius:8px;font-size:11px;font-weight:600;">复制邀请码</div>
+            </div>
+            <!-- Download link -->
+            <div style="margin-top:10px;font-size:10px;color:var(--text-s);">应用下载地址</div>
+            <div style="display:flex;gap:6px;margin-top:4px;">
+              <div style="flex:1;padding:8px;background:white;border:1px solid var(--border);border-radius:8px;font-size:9px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">apps.apple.com/app/adpilot/...</div>
+              <div style="padding:8px 12px;background:var(--primary);color:white;border-radius:8px;font-size:11px;font-weight:600;">复制链接</div>
+            </div>
+            <!-- Stats -->
+            <div style="display:flex;gap:8px;margin-top:12px;">
+              <div style="flex:1;background:white;border-radius:8px;padding:8px;">
+                <div style="font-size:16px;font-weight:700;color:var(--primary);">3</div>
+                <div style="font-size:9px;color:var(--text-s);">已邀请</div>
+              </div>
+              <div style="flex:1;background:white;border-radius:8px;padding:8px;">
+                <div style="font-size:16px;font-weight:700;color:var(--success);">+15</div>
+                <div style="font-size:9px;color:var(--text-s);">获得额度</div>
+              </div>
+              <div style="flex:1;background:white;border-radius:8px;padding:8px;">
+                <div style="font-size:16px;font-weight:700;color:var(--warning);">20</div>
+                <div style="font-size:9px;color:var(--text-s);">总额度/平台</div>
+              </div>
+            </div>
+          </div>
+          <div class="p-card">
+            <div style="font-size:11px;font-weight:600;margin-bottom:6px;">平台配额详情</div>
+            <div style="font-size:10px;display:flex;justify-content:space-between;margin-bottom:2px;">
+              <span><span class="p-badge meta">Meta</span> 2/20</span><span style="color:var(--text-s);">10%</span>
+            </div>
+            <div class="p-progress-wrap"><div class="p-progress meta" style="width:10%"></div></div>
+            <div style="font-size:10px;display:flex;justify-content:space-between;margin:6px 0 2px;">
+              <span><span class="p-badge tiktok">TikTok</span> 1/20</span><span style="color:var(--text-s);">5%</span>
+            </div>
+            <div class="p-progress-wrap"><div class="p-progress tiktok" style="width:5%"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-arrow" style="padding-top:280px;min-width:40px;font-size:20px;"></div>
+
+    <!-- 10 Add Account Modal -->
+    <div class="phone-wrap">
+      <div class="phone-label"><span class="num">10</span>添加广告账号弹窗</div>
+      <div class="phone">
+        <div class="phone-inner">
+          <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);"></div>
+          <div style="position:absolute;bottom:0;left:0;right:0;background:white;border-radius:16px 16px 0 0;padding:20px 16px 30px;">
+            <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px;"></div>
+            <div style="font-size:15px;font-weight:700;text-align:center;margin-bottom:4px;color:var(--text);">添加广告账号</div>
+            <div style="font-size:11px;color:var(--text-s);text-align:center;margin-bottom:16px;">选择平台并授权绑定</div>
+            <div style="border:1.5px solid var(--meta);border-radius:12px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:10px;">
+              <div style="width:36px;height:36px;border-radius:10px;background:var(--meta);display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;">f</div>
+              <div style="flex:1;">
+                <div style="font-size:13px;font-weight:600;color:var(--text);">Meta (Facebook)</div>
+                <div style="font-size:10px;color:var(--text-s);">已用 2/5 个额度</div>
+              </div>
+              <span style="color:var(--text-s);">›</span>
+            </div>
+            <div style="border:1.5px solid var(--tiktok);border-radius:12px;padding:14px;display:flex;align-items:center;gap:10px;">
+              <div style="width:36px;height:36px;border-radius:10px;background:var(--tiktok);display:flex;align-items:center;justify-content:center;color:white;font-weight:bold;">T</div>
+              <div style="flex:1;">
+                <div style="font-size:13px;font-weight:600;color:var(--text);">TikTok</div>
+                <div style="font-size:10px;color:var(--text-s);">已用 1/5 个额度</div>
+              </div>
+              <span style="color:var(--text-s);">›</span>
+            </div>
+            <div style="margin-top:14px;text-align:center;font-size:11px;color:var(--text-s);">取消</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-arrow" style="padding-top:280px;min-width:40px;font-size:20px;"></div>
+
+    <!-- 11 Budget Modal -->
+    <div class="phone-wrap">
+      <div class="phone-label"><span class="num">11</span>调整预算弹窗</div>
+      <div class="phone">
+        <div class="phone-inner">
+          <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);"></div>
+          <div style="position:absolute;bottom:0;left:0;right:0;background:white;border-radius:16px 16px 0 0;padding:20px 16px 30px;">
+            <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px;"></div>
+            <div style="font-size:15px;font-weight:700;text-align:center;margin-bottom:4px;color:var(--text);">调整日预算</div>
+            <div style="font-size:11px;color:var(--text-s);text-align:center;margin-bottom:16px;">Brand Awareness</div>
+            <div style="display:flex;align-items:center;border:1.5px solid var(--primary);border-radius:10px;padding:10px 12px;margin-bottom:10px;">
+              <span style="font-size:16px;color:var(--text-s);margin-right:4px;">$</span>
+              <span style="font-size:20px;font-weight:700;color:var(--text);">200.00</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
+              <span style="padding:6px 14px;background:var(--bg);border-radius:8px;font-size:11px;color:var(--text);">$50</span>
+              <span style="padding:6px 14px;background:var(--bg);border-radius:8px;font-size:11px;color:var(--text);">$100</span>
+              <span style="padding:6px 14px;background:var(--primary-bg);border:1px solid var(--primary);border-radius:8px;font-size:11px;color:var(--primary);font-weight:600;">$200</span>
+              <span style="padding:6px 14px;background:var(--bg);border-radius:8px;font-size:11px;color:var(--text);">$500</span>
+              <span style="padding:6px 14px;background:var(--bg);border-radius:8px;font-size:11px;color:var(--text);">$1000</span>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <div style="flex:1;padding:10px;text-align:center;border-radius:10px;background:var(--bg);color:var(--text-s);font-size:13px;font-weight:600;">取消</div>
+              <div style="flex:1;padding:10px;text-align:center;border-radius:10px;background:var(--primary);color:white;font-size:13px;font-weight:600;">确认修改</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="flow-arrow" style="padding-top:280px;min-width:40px;font-size:20px;"></div>
+
+    <!-- 12 Date Picker -->
+    <div class="phone-wrap">
+      <div class="phone-label"><span class="num">12</span>日期选择弹窗</div>
+      <div class="phone">
+        <div class="phone-inner">
+          <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);"></div>
+          <div style="position:absolute;bottom:0;left:0;right:0;background:white;border-radius:16px 16px 0 0;padding:20px 16px 30px;">
+            <div style="width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px;"></div>
+            <div style="font-size:15px;font-weight:700;text-align:center;margin-bottom:16px;color:var(--text);">选择日期范围</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+              <div style="padding:10px;text-align:center;border-radius:8px;background:var(--bg);font-size:11px;color:var(--text);">今天</div>
+              <div style="padding:10px;text-align:center;border-radius:8px;background:var(--bg);font-size:11px;color:var(--text);">昨天</div>
+              <div style="padding:10px;text-align:center;border-radius:8px;background:var(--primary);color:white;font-size:11px;font-weight:600;">近 7 天</div>
+              <div style="padding:10px;text-align:center;border-radius:8px;background:var(--bg);font-size:11px;color:var(--text);">近 14 天</div>
+              <div style="padding:10px;text-align:center;border-radius:8px;background:var(--bg);font-size:11px;color:var(--text);">近 30 天</div>
+              <div style="padding:10px;text-align:center;border-radius:8px;background:var(--bg);font-size:11px;color:var(--text);">本月</div>
+              <div style="padding:10px;text-align:center;border-radius:8px;background:var(--bg);font-size:11px;color:var(--text);">上月</div>
+              <div style="padding:10px;text-align:center;border-radius:8px;background:var(--bg);font-size:11px;color:var(--text);">自定义</div>
+            </div>
+            <div style="margin-top:14px;text-align:center;font-size:11px;color:var(--text-s);">取消</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ SECTION 4: FLOW DIAGRAM ═══════════ -->
+<div class="flow-section">
+  <div class="flow-title">🔗 页面交互流程图</div>
+  <div class="flow-desc">所有页面间的跳转关系一览</div>
+
+  <div style="background:#1E293B;border-radius:16px;padding:32px;font-size:13px;line-height:2.2;color:#CBD5E1;overflow-x:auto;">
+    <pre style="font-family:'SF Mono',Monaco,Consolas,monospace;white-space:pre;">
+┌──────────────────────────────────────────────────────────┐
+│                     🔐  认证流程                          │
+│                                                          │
+│   ① 登录页  ─── 登录成功 ──────────────────┐             │
+│      ↕ 切换                                │             │
+│   ② 注册页  ─── 注册成功 ───→ ③ 添加客服页  │             │
+│                                │            │             │
+│                     DeepLink 回调           │             │
+│                                ↓            ↓             │
+│                          ┌──────────────────┐            │
+│                          │   进入主界面 ✅    │            │
+│                          └────────┬─────────┘            │
+└───────────────────────────────────┼──────────────────────┘
+                                    │
+         ┌──────────────────────────┼───────────────────────┐
+         │               底部导航栏 (Tab Bar)                │
+         │                                                  │
+         │  ⑤ 数据首页  ⇄  ⑥ 广告管理  ⇄  ⑦ 账号  ⇄  ⑧ 设置 │
+         │                                                  │
+         └──────┬──────────────┬──────────┬──────────┬──────┘
+                │              │          │          │
+                ↓              ↓          ↓          ↓
+         ┌──────────┐  ┌───────────┐ ┌────────┐ ┌────────┐
+         │ ⑫ 日期弹窗│  │ 下钻导航   │ │⑩添加账号│ │⑨邀请好友│
+         │ (首页共用)│  │ 账号→系列  │ │  弹窗   │ │  页面  │
+         └──────────┘  │  →组→广告  │ └────────┘ └────────┘
+                       ├───────────┤
+                       │ ⑪ 预算弹窗 │
+                       │ ⑫ 日期弹窗 │
+                       └───────────┘
+
+   触发关系：
+   · ⑤ 数据首页 → 点击日期       → ⑫ 日期选择弹窗
+   · ⑥ 广告管理 → 点击卡片       → 层级下钻（面包屑导航）
+   · ⑥ 广告管理 → 调整预算       → ⑪ 预算调整弹窗
+   · ⑥ 广告管理 → 点击日期       → ⑫ 日期选择弹窗
+   · ⑦ 广告账号 → 添加账号       → ⑩ 添加账号弹窗
+   · ⑦ 广告账号 → 邀请好友       → ⑨ 邀请好友页面
+   · ⑧ 设置    → 广告账号管理    → ⑦ 广告账号页
+   · ⑧ 设置    → 邀请好友        → ⑨ 邀请好友页面
+   · ⑧ 设置    → 退出登录        → ① 登录页</pre>
+  </div>
+</div>
+
+</body>
+</html>

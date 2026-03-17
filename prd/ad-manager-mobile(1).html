@@ -1,0 +1,2195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AdPilot - 广告管理助手</title>
+<style>
+/* ============================================================
+   SECTION 1: DESIGN TOKENS & RESET
+   ============================================================ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  /* Brand */
+  --primary: #4F46E5;
+  --primary-light: #818CF8;
+  --primary-bg: #EEF2FF;
+  /* Semantic */
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  /* Text */
+  --text: #1F2937;
+  --text-secondary: #6B7280;
+  /* Surface */
+  --border: #E5E7EB;
+  --bg: #F9FAFB;
+  --card: #FFFFFF;
+  /* Platform */
+  --meta-blue: #1877F2;
+  --tiktok-dark: #010101;
+  --tiktok-red: #FE2C55;
+  /* Spacing scale */
+  --sp-xs: 4px; --sp-sm: 8px; --sp-md: 12px; --sp-lg: 16px; --sp-xl: 20px;
+  /* Radius scale */
+  --r-sm: 8px; --r-md: 12px; --r-lg: 14px; --r-xl: 16px; --r-pill: 20px;
+  /* Shadow */
+  --shadow-card: 0 2px 8px rgba(0,0,0,0.06);
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.06);
+  /* Transition */
+  --ease: 0.3s ease;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* ============================================================
+   SECTION 2: LAYOUT — Pages & Navigation
+   ============================================================ */
+.page { display: none; min-height: 100vh; padding-bottom: 80px; }
+.page.active { display: block; }
+
+.bottom-nav {
+  position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 100%; max-width: 430px;
+  background: var(--card);
+  display: flex; justify-content: space-around;
+  padding: var(--sp-sm) 0 env(safe-area-inset-bottom, 20px);
+  border-top: 1px solid var(--border);
+  z-index: 100;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+}
+.nav-item {
+  display: flex; flex-direction: column; align-items: center;
+  font-size: 10px; color: var(--text-secondary); cursor: pointer;
+  padding: var(--sp-xs) var(--sp-md); transition: color var(--ease); gap: 3px;
+  background: none; border: none;
+}
+.nav-item .nav-icon { font-size: 22px; }
+.nav-item.active { color: var(--primary); }
+
+/* ============================================================
+   SECTION 3: SHARED COMPONENTS
+   ============================================================ */
+
+/* --- 3.1 Page Header --- */
+.page-header {
+  padding: var(--sp-lg) var(--sp-xl); background: var(--card);
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.page-header h2 { font-size: 18px; font-weight: 700; }
+.page-header .back { font-size: 20px; cursor: pointer; padding: var(--sp-xs); background: none; border: none; }
+
+/* --- 3.2 Toast --- */
+.toast {
+  position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+  background: #1F2937; color: white; padding: var(--sp-md) 24px;
+  border-radius: var(--r-md); font-size: 14px; z-index: 999;
+  opacity: 0; transition: opacity var(--ease); pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+.toast.show { opacity: 1; }
+
+/* --- 3.3 Modal (Bottom Sheet) --- */
+.modal-overlay {
+  display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5); z-index: 200;
+  align-items: flex-end; justify-content: center;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--card); width: 100%; max-width: 430px;
+  border-radius: 24px 24px 0 0; padding: var(--sp-xl);
+  animation: slideUp 0.3s ease;
+}
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.modal-handle {
+  width: 40px; height: 4px; background: var(--border);
+  border-radius: 2px; margin: 0 auto var(--sp-lg);
+}
+.modal h3 { font-size: 18px; font-weight: 700; margin-bottom: var(--sp-xl); text-align: center; }
+.modal-btn {
+  width: 100%; padding: var(--sp-lg); border: none; border-radius: var(--r-lg);
+  font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 10px;
+}
+.modal-btn.primary { background: var(--primary); color: white; }
+.modal-btn.cancel { background: var(--bg); color: var(--text-secondary); }
+
+/* --- 3.4 Empty State --- */
+.empty-state { text-align: center; padding: 60px 40px; }
+.empty-state .emoji { font-size: 48px; margin-bottom: var(--sp-lg); }
+.empty-state .msg { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+
+/* --- 3.5 Badge --- */
+.badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; border-radius: 9px;
+  background: var(--danger); color: white; font-size: 10px; font-weight: 700;
+  padding: 0 5px;
+}
+
+/* --- 3.6 Toggle Switch --- */
+.toggle {
+  width: 46px; height: 26px; border-radius: 13px;
+  background: #D1D5DB; position: relative; cursor: pointer;
+  transition: background var(--ease); flex-shrink: 0; border: none;
+}
+.toggle.on { background: var(--success); }
+.toggle::after {
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: white; transition: transform var(--ease);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle.on::after { transform: translateX(20px); }
+
+/* --- 3.7 Platform Badge --- */
+.platform-badge {
+  font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700;
+}
+.platform-badge.meta { background: #E8F0FE; color: var(--meta-blue); }
+.platform-badge.tiktok { background: #FFF0F3; color: var(--tiktok-red); }
+
+/* --- 3.8 Search Bar --- */
+.search-bar { margin: var(--sp-md) var(--sp-lg); position: relative; }
+.search-bar input {
+  width: 100%; padding: 12px 16px 12px 42px;
+  border: 1.5px solid var(--border); border-radius: var(--r-md);
+  font-size: 14px; background: var(--card); outline: none;
+}
+.search-bar input:focus { border-color: var(--primary); }
+.search-bar .search-icon {
+  position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+  font-size: 16px; color: var(--text-secondary);
+}
+
+/* --- 3.9 Update Time --- */
+.update-time {
+  display: flex; align-items: center; justify-content: center; gap: var(--sp-xs);
+  font-size: 11px; color: var(--text-secondary); padding: var(--sp-sm) var(--sp-xl) 0;
+}
+.update-time .dot-live {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--success); display: inline-block;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+/* ============================================================
+   SECTION 4: HOME PAGE
+   ============================================================ */
+.header {
+  background: linear-gradient(135deg, var(--primary), #7C3AED);
+  color: white; padding: var(--sp-lg) var(--sp-xl) var(--sp-xl);
+  border-radius: 0 0 24px 24px;
+}
+.header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--sp-lg); }
+.header h1 { font-size: 20px; font-weight: 700; }
+.header-icons { display: flex; gap: var(--sp-md); }
+.header-icons span {
+  width: 36px; height: 36px; background: rgba(255,255,255,0.2);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 16px; cursor: pointer;
+}
+
+/* Platform Tabs */
+.platform-tabs { display: flex; gap: var(--sp-sm); margin-bottom: var(--sp-lg); }
+.platform-tab {
+  flex: 1; padding: 10px; border-radius: var(--r-md); text-align: center;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  background: rgba(255,255,255,0.15); color: rgba(255,255,255,0.8);
+  transition: all var(--ease);
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.platform-tab.active { background: white; color: var(--primary); }
+.platform-tab .dot { width: 8px; height: 8px; border-radius: 50%; }
+.platform-tab .dot.meta { background: var(--meta-blue); }
+.platform-tab .dot.tiktok { background: var(--tiktok-red); }
+
+/* Date Picker Trigger */
+.date-picker {
+  display: flex; align-items: center; gap: var(--sp-sm);
+  background: rgba(255,255,255,0.15); padding: var(--sp-sm) 14px;
+  border-radius: var(--r-pill); font-size: 13px; color: white;
+  cursor: pointer; width: fit-content;
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: var(--sp-md); padding: var(--sp-lg) var(--sp-xl);
+  margin-top: -10px;
+}
+.stat-card {
+  background: var(--card); border-radius: var(--r-xl);
+  padding: var(--sp-lg) var(--sp-lg); text-align: center;
+  box-shadow: var(--shadow-card);
+}
+.stat-card .icon { font-size: 24px; margin-bottom: var(--sp-sm); }
+.stat-card .value { font-size: 18px; font-weight: 700; color: var(--text); }
+.stat-card .label { font-size: 11px; color: var(--text-secondary); margin-top: var(--sp-xs); }
+.stat-card .change { font-size: 11px; margin-top: 6px; font-weight: 600; }
+.stat-card .change.up { color: var(--success); }
+.stat-card .change.down { color: var(--danger); }
+
+/* Section */
+.section { padding: 0 var(--sp-xl); margin-top: var(--sp-xl); }
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--sp-md); }
+.section-title { font-size: 16px; font-weight: 700; }
+
+/* Chart */
+.chart-container {
+  background: var(--card); border-radius: var(--r-xl); padding: var(--sp-lg);
+  box-shadow: var(--shadow-card);
+}
+.chart-tabs { display: flex; gap: var(--sp-sm); margin-bottom: var(--sp-lg); flex-wrap: wrap; }
+.chart-tab {
+  padding: 6px 14px; border-radius: var(--r-pill); font-size: 12px;
+  background: var(--bg); color: var(--text-secondary); cursor: pointer;
+  font-weight: 500; border: none;
+}
+.chart-tab.active { background: var(--primary-bg); color: var(--primary); font-weight: 600; }
+.chart-area {
+  height: 180px; display: flex; align-items: flex-end; gap: 6px;
+  padding: 0 var(--sp-xs);
+}
+.chart-bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.chart-bar {
+  width: 100%; border-radius: 6px 6px 0 0;
+  background: linear-gradient(to top, var(--primary), var(--primary-light));
+  transition: height 0.5s ease; min-height: 8px;
+}
+.chart-bar-val { font-size: 9px; font-weight: 600; color: var(--primary); white-space: nowrap; }
+.chart-label { font-size: 10px; color: var(--text-secondary); }
+
+/* ============================================================
+   SECTION 5: ACCOUNTS PAGE
+   ============================================================ */
+.account-card {
+  background: var(--card); margin: var(--sp-md) var(--sp-xl);
+  border-radius: var(--r-xl); padding: var(--sp-lg);
+  box-shadow: var(--shadow-card);
+}
+.account-card-top { display: flex; align-items: center; gap: var(--sp-md); margin-bottom: var(--sp-md); }
+.account-avatar {
+  width: 48px; height: 48px; border-radius: var(--r-lg);
+  display: flex; align-items: center; justify-content: center; font-size: 22px;
+}
+.account-avatar.meta-bg { background: linear-gradient(135deg, #1877F2, #42A5F5); color: white; }
+.account-avatar.tiktok-bg { background: linear-gradient(135deg, #010101, #333); color: white; }
+.account-name { font-size: 15px; font-weight: 600; }
+.account-id { font-size: 12px; color: var(--text-secondary); }
+.account-status {
+  display: inline-flex; align-items: center; gap: var(--sp-xs);
+  padding: 3px 10px; border-radius: var(--r-pill); font-size: 11px; font-weight: 600;
+  margin-top: var(--sp-xs);
+}
+.account-status.active { background: #D1FAE5; color: #065F46; }
+.account-status.paused { background: #FEF3C7; color: #92400E; }
+.account-status.error { background: #FEE2E2; color: #991B1B; }
+.account-stats-row {
+  display: flex; gap: var(--sp-sm); padding-top: var(--sp-md);
+  border-top: 1px solid var(--border);
+}
+.account-stat {
+  flex: 1; text-align: center; padding: var(--sp-sm) 0;
+  background: var(--bg); border-radius: 10px;
+}
+.account-stat .val { font-size: 14px; font-weight: 700; }
+.account-stat .lbl { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+
+.add-account-btn {
+  margin: var(--sp-lg) var(--sp-xl); padding: 14px;
+  border: 2px dashed var(--border); border-radius: var(--r-xl);
+  text-align: center; cursor: pointer; color: var(--text-secondary);
+  font-size: 14px; transition: all 0.2s; background: transparent;
+  width: calc(100% - 40px);
+}
+.add-account-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+/* ============================================================
+   SECTION 6: ADS PAGE
+   ============================================================ */
+
+/* Ads Date Bar */
+.ads-date-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px var(--sp-lg); background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+.ads-date-bar .ads-date-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: var(--r-pill); font-size: 12px; font-weight: 500;
+  background: var(--bg); border: 1.5px solid var(--border); cursor: pointer;
+  color: var(--text); transition: all 0.2s;
+}
+.ads-date-bar .ads-date-btn:active { border-color: var(--primary); }
+.ads-date-bar .ads-update-time { font-size: 10px; color: var(--text-secondary); }
+
+/* Dimension Tabs */
+.dimension-tabs {
+  display: flex; background: var(--card);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+.dimension-tab {
+  flex: 1; min-width: 70px; padding: var(--sp-md) var(--sp-sm); text-align: center;
+  font-size: 13px; font-weight: 500; color: var(--text-secondary);
+  cursor: pointer; position: relative; white-space: nowrap;
+  background: none; border: none;
+}
+.dimension-tab.active { color: var(--primary); font-weight: 700; }
+.dimension-tab.active::after {
+  content: ''; position: absolute; bottom: 0; left: 20%; right: 20%;
+  height: 3px; background: var(--primary); border-radius: 3px;
+}
+.dimension-tab .tab-count {
+  display: inline-block; font-size: 10px; background: var(--bg);
+  padding: 1px 6px; border-radius: var(--r-sm); margin-left: var(--sp-xs);
+  color: var(--text-secondary);
+}
+.dimension-tab.active .tab-count { background: var(--primary-bg); color: var(--primary); }
+
+/* Breadcrumb */
+.breadcrumb {
+  display: flex; align-items: center; gap: var(--sp-xs); padding: 10px var(--sp-lg);
+  font-size: 12px; color: var(--text-secondary); overflow-x: auto;
+  white-space: nowrap; -webkit-overflow-scrolling: touch;
+  background: var(--card); border-bottom: 1px solid var(--border);
+}
+.breadcrumb:empty { display: none; }
+.breadcrumb .crumb {
+  color: var(--primary); cursor: pointer; font-weight: 500;
+  background: none; border: none; font-size: 12px; padding: var(--sp-xs) 2px;
+}
+.breadcrumb .crumb:hover { text-decoration: underline; }
+.breadcrumb .crumb.current { color: var(--text); cursor: default; font-weight: 600; }
+.breadcrumb .crumb.current:hover { text-decoration: none; }
+.breadcrumb .sep { color: var(--border); font-size: 10px; }
+
+/* Summary Card */
+.summary-card {
+  margin: 10px var(--sp-lg); padding: 14px; border-radius: var(--r-lg);
+  background: linear-gradient(135deg, var(--primary-bg), #F0EAFF);
+  border: 1px solid #DDD6FE;
+}
+.summary-title {
+  font-size: 12px; color: var(--primary); font-weight: 700;
+  margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+}
+.summary-stats { display: flex; gap: 6px; flex-wrap: wrap; }
+.summary-stat {
+  flex: 1; min-width: 60px; text-align: center; padding: var(--sp-sm) var(--sp-xs);
+  background: rgba(255,255,255,0.7); border-radius: 10px;
+}
+.summary-stat .val { font-size: 14px; font-weight: 700; color: var(--primary); }
+.summary-stat .lbl { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+
+/* Ad Management Card */
+.manage-card {
+  background: var(--card); margin: 10px var(--sp-lg); border-radius: var(--r-lg);
+  padding: 14px; box-shadow: var(--shadow-sm);
+}
+.manage-card.clickable { cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; }
+.manage-card.clickable:active { transform: scale(0.98); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+.manage-card-top { display: flex; justify-content: space-between; align-items: flex-start; }
+.manage-card-info { flex: 1; min-width: 0; }
+.manage-card-name {
+  font-size: 14px; font-weight: 600;
+  display: flex; align-items: center; gap: 6px;
+}
+.manage-card-id { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+.manage-card-stats {
+  display: flex; gap: 10px; margin-top: var(--sp-md); padding-top: 10px;
+  border-top: 1px solid var(--border); flex-wrap: wrap;
+}
+.manage-stat .val { font-size: 13px; font-weight: 700; }
+.manage-stat .lbl { font-size: 10px; color: var(--text-secondary); }
+.manage-card-budget {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 10px; padding: 10px var(--sp-md);
+  background: var(--bg); border-radius: 10px;
+}
+.budget-label { font-size: 12px; color: var(--text-secondary); }
+.budget-value { font-size: 14px; font-weight: 700; }
+.budget-edit {
+  background: var(--primary-bg); color: var(--primary);
+  border: none; padding: 6px 14px; border-radius: var(--r-sm);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.drill-hint {
+  font-size: 11px; color: var(--text-secondary);
+  display: flex; align-items: center; gap: var(--sp-xs); margin-top: var(--sp-sm);
+}
+
+/* ============================================================
+   SECTION 7: SETTINGS PAGE
+   ============================================================ */
+.settings-group { margin: var(--sp-lg) var(--sp-xl); }
+.settings-group-title {
+  font-size: 12px; color: var(--text-secondary); font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-bottom: var(--sp-sm); padding-left: var(--sp-xs);
+}
+.settings-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--sp-lg); background: var(--card);
+  border-bottom: 1px solid var(--border); cursor: pointer;
+}
+.settings-item:first-of-type { border-radius: var(--r-lg) var(--r-lg) 0 0; }
+.settings-item:last-of-type { border-radius: 0 0 var(--r-lg) var(--r-lg); border-bottom: none; }
+.settings-item:only-of-type { border-radius: var(--r-lg); }
+.settings-item-left { display: flex; align-items: center; gap: var(--sp-md); }
+.settings-item-icon {
+  font-size: 20px; width: 36px; height: 36px;
+  background: var(--bg); border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+}
+.settings-item-text .title { font-size: 14px; font-weight: 500; }
+.settings-item-text .desc { font-size: 12px; color: var(--text-secondary); }
+.settings-arrow { color: var(--text-secondary); font-size: 16px; }
+
+/* ============================================================
+   SECTION 8: MODAL — Add Account
+   ============================================================ */
+.modal-option {
+  display: flex; align-items: center; gap: 14px;
+  padding: var(--sp-lg); border-radius: var(--r-lg); margin-bottom: 10px;
+  background: var(--bg); cursor: pointer; border: 2px solid transparent;
+  transition: all 0.2s; width: 100%;
+}
+.modal-option:hover { border-color: var(--primary); }
+.modal-option-icon {
+  width: 48px; height: 48px; border-radius: var(--r-lg);
+  display: flex; align-items: center; justify-content: center; font-size: 24px;
+}
+.modal-option-icon.meta-bg { background: linear-gradient(135deg, #1877F2, #42A5F5); color: white; }
+.modal-option-icon.tiktok-bg { background: linear-gradient(135deg, #010101, #333); color: white; }
+.modal-option-text { text-align: left; }
+.modal-option-title { font-size: 15px; font-weight: 600; }
+.modal-option-desc { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+/* ============================================================
+   SECTION 9: MODAL — Budget Edit
+   ============================================================ */
+.budget-input-group { margin-bottom: var(--sp-lg); }
+.budget-input-group label { display: block; font-size: 13px; color: var(--text-secondary); margin-bottom: var(--sp-sm); }
+.budget-input-wrap {
+  display: flex; align-items: center; border: 2px solid var(--border);
+  border-radius: var(--r-md); padding: 0 14px; transition: border-color 0.2s;
+}
+.budget-input-wrap:focus-within { border-color: var(--primary); }
+.budget-input-wrap .currency { font-size: 16px; font-weight: 700; color: var(--text-secondary); margin-right: var(--sp-sm); }
+.budget-input-wrap input {
+  flex: 1; border: none; outline: none; padding: 14px 0;
+  font-size: 18px; font-weight: 700; background: transparent;
+}
+.quick-amounts { display: flex; gap: var(--sp-sm); margin-top: 10px; flex-wrap: wrap; }
+.quick-amount {
+  padding: var(--sp-sm) var(--sp-lg); border-radius: var(--r-pill);
+  background: var(--bg); border: 1px solid var(--border);
+  font-size: 13px; cursor: pointer; font-weight: 500; transition: all 0.2s;
+}
+.quick-amount:hover { background: var(--primary-bg); border-color: var(--primary); color: var(--primary); }
+
+/* ============================================================
+   SECTION 10: MODAL — Date Picker
+   ============================================================ */
+.date-options { display: flex; flex-direction: column; gap: var(--sp-sm); margin-bottom: var(--sp-lg); }
+.date-option {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px var(--sp-lg); border-radius: var(--r-md); background: var(--bg);
+  border: 2px solid transparent; cursor: pointer; width: 100%;
+  font-size: 14px; font-weight: 500; transition: all 0.2s;
+}
+.date-option.selected { border-color: var(--primary); background: var(--primary-bg); color: var(--primary); }
+.date-option:hover { border-color: var(--primary-light); }
+.date-option .date-range { font-size: 12px; color: var(--text-secondary); }
+.date-option.selected .date-range { color: var(--primary); }
+.custom-date-row { display: flex; gap: var(--sp-sm); margin-top: var(--sp-md); }
+.custom-date-row input[type="date"] {
+  flex: 1; padding: 10px 12px; border: 1.5px solid var(--border);
+  border-radius: 10px; font-size: 13px; background: var(--card); outline: none;
+}
+.custom-date-row input[type="date"]:focus { border-color: var(--primary); }
+
+/* ============================================================
+   SECTION 11: AUTH PAGES (Login / Register / Contact Bind)
+   ============================================================ */
+.auth-page {
+  display: none; min-height: 100vh;
+  background: linear-gradient(160deg, #4F46E5 0%, #7C3AED 50%, #9333EA 100%);
+  padding: 0 var(--sp-xl);
+  flex-direction: column; justify-content: center; align-items: center;
+}
+.auth-page.active { display: flex; }
+.auth-logo {
+  text-align: center; margin-bottom: 36px; color: white;
+}
+.auth-logo .logo-icon { font-size: 48px; margin-bottom: var(--sp-sm); }
+.auth-logo h1 { font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
+.auth-logo p { font-size: 14px; opacity: 0.8; margin-top: var(--sp-xs); }
+
+.auth-card {
+  width: 100%; max-width: 380px; background: var(--card);
+  border-radius: 20px; padding: 28px 24px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+.auth-card h2 { font-size: 20px; font-weight: 700; text-align: center; margin-bottom: 24px; color: var(--text); }
+
+.auth-field { margin-bottom: var(--sp-lg); }
+.auth-field label {
+  display: block; font-size: 13px; font-weight: 600;
+  color: var(--text-secondary); margin-bottom: 6px;
+}
+.auth-field input {
+  width: 100%; padding: 14px var(--sp-lg);
+  border: 1.5px solid var(--border); border-radius: var(--r-md);
+  font-size: 15px; outline: none; transition: border-color 0.2s;
+  background: var(--bg);
+}
+.auth-field input:focus { border-color: var(--primary); background: var(--card); }
+.auth-field .field-hint { font-size: 11px; color: var(--text-secondary); margin-top: var(--sp-xs); }
+
+.auth-btn {
+  width: 100%; padding: 16px; border: none; border-radius: var(--r-lg);
+  font-size: 16px; font-weight: 700; cursor: pointer;
+  background: linear-gradient(135deg, var(--primary), #7C3AED);
+  color: white; margin-top: var(--sp-sm);
+  transition: opacity 0.2s; box-shadow: 0 4px 16px rgba(79,70,229,0.4);
+}
+.auth-btn:active { opacity: 0.85; }
+.auth-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.auth-switch {
+  text-align: center; margin-top: var(--sp-lg); font-size: 13px; color: var(--text-secondary);
+}
+.auth-switch a {
+  color: var(--primary); font-weight: 600; cursor: pointer; text-decoration: none;
+}
+.auth-switch a:hover { text-decoration: underline; }
+
+.auth-divider {
+  display: flex; align-items: center; gap: var(--sp-md);
+  margin: 20px 0; color: var(--text-secondary); font-size: 12px;
+}
+.auth-divider::before, .auth-divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+
+/* Contact Bind page */
+.contact-bind-card {
+  width: 100%; max-width: 380px; background: var(--card);
+  border-radius: 20px; padding: 28px 24px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+.contact-bind-card h2 {
+  font-size: 20px; font-weight: 700; text-align: center;
+  margin-bottom: var(--sp-sm); color: var(--text);
+}
+.contact-bind-card .subtitle {
+  font-size: 13px; color: var(--text-secondary); text-align: center;
+  margin-bottom: 24px; line-height: 1.5;
+}
+.contact-option {
+  display: flex; align-items: center; gap: 14px;
+  padding: var(--sp-lg); border-radius: var(--r-lg); margin-bottom: 10px;
+  background: var(--bg); cursor: pointer; border: 2px solid transparent;
+  transition: all 0.2s; width: 100%;
+}
+.contact-option.selected { border-color: var(--primary); background: var(--primary-bg); }
+.contact-option:hover { border-color: var(--primary-light); }
+.contact-icon {
+  width: 44px; height: 44px; border-radius: var(--r-md);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; flex-shrink: 0;
+}
+.contact-icon.wechat { background: #07C160; color: white; }
+.contact-icon.telegram { background: #0088CC; color: white; }
+.contact-option-text { flex: 1; text-align: left; }
+.contact-option-title { font-size: 14px; font-weight: 600; }
+.contact-option-desc { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.contact-check {
+  width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: transparent; flex-shrink: 0; transition: all 0.2s;
+}
+.contact-option.selected .contact-check {
+  background: var(--primary); border-color: var(--primary); color: white;
+}
+/* Waiting state after jump */
+#contact-waiting a { text-decoration: none; }
+#contact-waiting a:hover { text-decoration: underline; }
+
+/* ============================================================
+   SECTION 12: INVITE & QUOTA
+   ============================================================ */
+.quota-card {
+  margin: var(--sp-md) var(--sp-xl); padding: var(--sp-lg);
+  border-radius: var(--r-lg); background: var(--card);
+  box-shadow: var(--shadow-card);
+}
+.quota-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--sp-md); }
+.quota-header .title { font-size: 14px; font-weight: 700; }
+.quota-bar-wrap { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+.quota-bar { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+.quota-bar.meta { background: linear-gradient(90deg, #1877F2, #42A5F5); }
+.quota-bar.tiktok { background: linear-gradient(90deg, #FE2C55, #FF6B8A); }
+.quota-detail {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 6px; font-size: 11px; color: var(--text-secondary);
+}
+.quota-detail .used { font-weight: 600; color: var(--text); }
+
+.invite-section { margin: var(--sp-xl) var(--sp-xl); }
+.invite-section-title { font-size: 16px; font-weight: 700; margin-bottom: var(--sp-md); }
+.invite-card {
+  background: linear-gradient(135deg, var(--primary-bg), #F0EAFF);
+  border: 1px solid #DDD6FE; border-radius: var(--r-xl); padding: var(--sp-xl);
+  text-align: center;
+}
+.invite-card .invite-icon { font-size: 40px; margin-bottom: var(--sp-sm); }
+.invite-card .invite-title { font-size: 16px; font-weight: 700; color: var(--primary); margin-bottom: var(--sp-xs); }
+.invite-card .invite-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-bottom: var(--sp-lg); }
+.invite-card .invite-reward {
+  display: inline-flex; align-items: center; gap: var(--sp-xs);
+  background: white; padding: 6px 14px; border-radius: var(--r-pill);
+  font-size: 13px; font-weight: 600; color: var(--primary);
+  margin-bottom: var(--sp-lg);
+}
+.invite-code-wrap {
+  display: flex; align-items: center; gap: var(--sp-sm);
+  background: white; padding: 10px 14px; border-radius: var(--r-md);
+  margin-bottom: var(--sp-md);
+}
+.invite-code-wrap input {
+  flex: 1; border: none; outline: none; font-size: 14px; font-weight: 600;
+  color: var(--text); background: transparent; letter-spacing: 1px;
+}
+.invite-code-wrap button {
+  padding: 8px 16px; border: none; border-radius: var(--r-sm);
+  background: var(--primary); color: white; font-size: 12px;
+  font-weight: 600; cursor: pointer;
+}
+.invite-stats {
+  display: flex; gap: var(--sp-sm); margin-top: var(--sp-md);
+}
+.invite-stat {
+  flex: 1; background: white; padding: 10px; border-radius: var(--r-md); text-align: center;
+}
+.invite-stat .val { font-size: 18px; font-weight: 700; color: var(--primary); }
+.invite-stat .lbl { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ================================================================
+     TOAST (global)
+     ================================================================ -->
+<div class="toast" id="toast"></div>
+
+<!-- ================================================================
+     AUTH: LOGIN
+     ================================================================ -->
+<div class="auth-page active" id="auth-login">
+  <div class="auth-logo">
+    <div class="logo-icon">📊</div>
+    <h1>AdPilot</h1>
+    <p>跨平台广告管理助手</p>
+  </div>
+  <div class="auth-card">
+    <h2>登录</h2>
+    <div class="auth-field">
+      <label>邮箱地址</label>
+      <input type="email" id="login-email" placeholder="your@email.com">
+    </div>
+    <div class="auth-field">
+      <label>密码</label>
+      <input type="password" id="login-password" placeholder="输入密码">
+    </div>
+    <button class="auth-btn" data-action="auth-login">登录</button>
+    <div class="auth-switch">
+      还没有账号？ <a data-action="auth-switch" data-target="register">立即注册</a>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================
+     AUTH: REGISTER
+     ================================================================ -->
+<div class="auth-page" id="auth-register">
+  <div class="auth-logo">
+    <div class="logo-icon">📊</div>
+    <h1>AdPilot</h1>
+    <p>跨平台广告管理助手</p>
+  </div>
+  <div class="auth-card">
+    <h2>创建账号</h2>
+    <div class="auth-field">
+      <label>邮箱地址</label>
+      <input type="email" id="reg-email" placeholder="your@email.com">
+    </div>
+    <div class="auth-field">
+      <label>密码</label>
+      <input type="password" id="reg-password" placeholder="至少 8 位字符">
+      <div class="field-hint">密码需包含字母和数字，至少 8 位</div>
+    </div>
+    <div class="auth-field">
+      <label>确认密码</label>
+      <input type="password" id="reg-password2" placeholder="再次输入密码">
+    </div>
+    <div class="auth-field">
+      <label>邀请码（选填）</label>
+      <input type="text" id="reg-invite-code" placeholder="如有邀请码请输入">
+      <div class="field-hint">输入邀请码，你和邀请人各获得 +5 账号额度</div>
+    </div>
+    <button class="auth-btn" data-action="auth-register">注册</button>
+    <div class="auth-switch">
+      已有账号？ <a data-action="auth-switch" data-target="login">去登录</a>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================
+     AUTH: CONTACT BIND (post-register gate)
+     ================================================================ -->
+<div class="auth-page" id="auth-contact-bind">
+  <div class="auth-logo">
+    <div class="logo-icon">🚀</div>
+    <h1>还差一步</h1>
+    <p>解锁全部功能</p>
+  </div>
+  <div class="contact-bind-card">
+    <h2>添加客服，获取使用教程</h2>
+
+    <div style="display:flex;gap:10px;margin-bottom:20px;">
+      <div style="flex:1;padding:12px 10px;background:var(--bg);border-radius:var(--r-md);text-align:center;">
+        <div style="font-size:20px;margin-bottom:4px;">📊</div>
+        <div style="font-size:12px;font-weight:600;">双平台数据</div>
+      </div>
+      <div style="flex:1;padding:12px 10px;background:var(--bg);border-radius:var(--r-md);text-align:center;">
+        <div style="font-size:20px;margin-bottom:4px;">🎯</div>
+        <div style="font-size:12px;font-weight:600;">移动端调控</div>
+      </div>
+    </div>
+
+    <button class="contact-option" data-action="jump-to-contact" data-type="wechat" id="contact-opt-wechat">
+      <div class="contact-icon wechat">💬</div>
+      <div class="contact-option-text">
+        <div class="contact-option-title">微信添加</div>
+      </div>
+      <span style="font-size:16px;color:var(--text-secondary);">→</span>
+    </button>
+    <button class="contact-option" data-action="jump-to-contact" data-type="telegram" id="contact-opt-telegram">
+      <div class="contact-icon telegram">✈️</div>
+      <div class="contact-option-text">
+        <div class="contact-option-title">Telegram 添加</div>
+      </div>
+      <span style="font-size:16px;color:var(--text-secondary);">→</span>
+    </button>
+
+    <!-- Waiting state (shown after jump) -->
+    <div id="contact-waiting" style="display:none;text-align:center;margin-top:20px;">
+      <div style="font-size:36px;margin-bottom:12px;">⏳</div>
+      <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px;" id="waiting-label">正在跳转…</div>
+      <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">添加完成后将自动返回</div>
+      <div style="margin-top:16px;padding:12px;background:var(--bg);border-radius:var(--r-md);font-size:12px;color:var(--text-secondary);">
+        💡 Demo 模拟：<a style="color:var(--primary);font-weight:600;cursor:pointer;" data-action="simulate-deeplink">点此模拟回调</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================
+     PAGE: HOME
+     ================================================================ -->
+<div class="page" id="page-home">
+  <div class="header">
+    <div class="header-top">
+      <h1>📊 AdPilot</h1>
+      <div class="header-icons">
+        <span data-action="navigate" data-target="settings">⚙️</span>
+      </div>
+    </div>
+    <div class="platform-tabs" id="platform-tabs">
+      <div class="platform-tab active" data-platform="all">全部平台</div>
+      <div class="platform-tab" data-platform="meta"><span class="dot meta"></span>Meta</div>
+      <div class="platform-tab" data-platform="tiktok"><span class="dot tiktok"></span>TikTok</div>
+    </div>
+    <div class="date-picker" data-action="open-date-modal" data-source="home">
+      📅 <span id="date-display">03.10 - 03.16 (近7天)</span> ▾
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid" id="home-stats">
+    <!-- Rendered by JS -->
+  </div>
+
+  <!-- Update Time -->
+  <div class="update-time" id="home-update-time">
+    <span class="dot-live"></span>
+    <span id="home-update-label">数据更新于 --</span>
+  </div>
+
+  <!-- Trend Chart -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-title">数据趋势</span>
+    </div>
+    <div class="chart-container">
+      <div class="chart-tabs" id="chart-tabs">
+        <!-- Rendered by JS -->
+      </div>
+      <div class="chart-area" id="chart-area"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================
+     PAGE: ACCOUNTS
+     ================================================================ -->
+<div class="page" id="page-accounts">
+  <div class="page-header">
+    <button class="back" data-action="navigate" data-target="home">←</button>
+    <h2>广告账号管理</h2>
+    <span style="width:28px"></span>
+  </div>
+  <!-- Quota display on accounts page -->
+  <div id="accounts-quota"></div>
+
+  <div style="display:flex;gap:10px;margin:0 20px 12px;">
+    <button class="add-account-btn" id="add-account-btn" data-action="open-modal" data-modal="modal-add-account" style="margin:0;flex:1;">＋ 添加广告账号</button>
+    <button class="add-account-btn" data-action="navigate" data-target="invite" style="margin:0;flex:1;border-color:var(--primary);color:var(--primary);">🎁 邀请好友，获得更多额度</button>
+  </div>
+
+  <div id="accounts-list">
+    <!-- Rendered by JS -->
+  </div>
+
+  <!-- Invite CTA when quota is tight -->
+  <div id="accounts-invite-cta"></div>
+</div>
+
+<!-- ================================================================
+     PAGE: ADS (Manage)
+     ================================================================ -->
+<div class="page" id="page-manage">
+  <div class="page-header">
+    <button class="back" id="ads-back-btn" data-action="ads-back">←</button>
+    <h2 id="ads-page-title">广告</h2>
+    <span style="width:28px"></span>
+  </div>
+
+  <!-- Date Filter + Update Time -->
+  <div class="ads-date-bar">
+    <button class="ads-date-btn" data-action="open-date-modal" data-source="ads">
+      📅 <span id="ads-date-display">03.10 - 03.16 (近7天)</span> ▾
+    </button>
+    <span class="ads-update-time" id="ads-update-time">更新于 --</span>
+  </div>
+
+  <!-- Dimension Tabs -->
+  <div class="dimension-tabs" id="dimension-tabs"></div>
+
+  <!-- Breadcrumb -->
+  <div id="ads-breadcrumb" class="breadcrumb"></div>
+
+  <!-- Summary -->
+  <div id="ads-summary"></div>
+
+  <div class="search-bar">
+    <span class="search-icon">🔍</span>
+    <input type="text" id="ads-search-input" placeholder="搜索...">
+  </div>
+
+  <div id="manage-list"></div>
+</div>
+
+<!-- ================================================================
+     PAGE: SETTINGS
+     ================================================================ -->
+<div class="page" id="page-settings">
+  <div class="page-header">
+    <button class="back" data-action="navigate" data-target="home">←</button>
+    <h2>设置</h2>
+    <span style="width:28px"></span>
+  </div>
+
+  <div style="text-align:center;padding:30px 20px 10px;">
+    <div style="width:64px;height:64px;border-radius:20px;background:linear-gradient(135deg,var(--primary),#7C3AED);color:white;font-size:28px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">W</div>
+    <div style="font-size:18px;font-weight:700;">wwb</div>
+    <div style="font-size:13px;color:var(--text-secondary);margin-top:2px;">chanyanrb@gmail.com</div>
+  </div>
+
+  <!-- Quota Overview -->
+  <div id="settings-quota"></div>
+
+  <div class="settings-group">
+    <div class="settings-group-title">账号管理</div>
+    <div class="settings-item" data-action="navigate" data-target="accounts">
+      <div class="settings-item-left">
+        <div class="settings-item-icon">👤</div>
+        <div class="settings-item-text"><div class="title">广告账号管理</div><div class="desc" id="settings-account-count">已绑定 -- 个广告账号</div></div>
+      </div>
+      <span class="settings-arrow">›</span>
+    </div>
+    <div class="settings-item" data-action="navigate" data-target="invite">
+      <div class="settings-item-left">
+        <div class="settings-item-icon">🎁</div>
+        <div class="settings-item-text"><div class="title">邀请好友</div><div class="desc">邀请新用户，每人 +5 账号额度</div></div>
+      </div>
+      <span class="settings-arrow">›</span>
+    </div>
+    <div class="settings-item" data-action="auth-logout">
+      <div class="settings-item-left">
+        <div class="settings-item-icon">🚪</div>
+        <div class="settings-item-text"><div class="title" style="color:var(--danger);">退出登录</div><div class="desc">退出当前账号</div></div>
+      </div>
+      <span class="settings-arrow">›</span>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================
+     PAGE: INVITE
+     ================================================================ -->
+<div class="page" id="page-invite">
+  <div class="page-header">
+    <button class="back" data-action="navigate" data-target="settings">←</button>
+    <h2>邀请好友</h2>
+    <span style="width:28px"></span>
+  </div>
+
+  <div class="invite-section">
+    <div class="invite-card">
+      <div class="invite-icon">🎁</div>
+      <div class="invite-title">邀请好友，扩展账号额度</div>
+      <div class="invite-desc">每成功邀请 1 位新用户注册 AdPilot，<br>你和好友各获得 <strong>+5 个广告账号</strong>额度</div>
+      <div class="invite-reward">🎯 每邀请 1 人 = +5 账号额度</div>
+      <div class="invite-code-wrap">
+        <input type="text" id="invite-code-display" readonly value="--">
+        <button data-action="copy-invite-code">复制邀请码</button>
+      </div>
+
+      <div style="margin-top:14px;font-size:13px;color:var(--text-secondary);text-align:center;">应用下载地址</div>
+      <div class="invite-code-wrap" style="margin-top:8px;">
+        <input type="text" id="invite-download-link" readonly value="https://apps.apple.com/app/adpilot/id0000000000" style="font-size:12px;">
+        <button data-action="copy-download-link">复制链接</button>
+      </div>
+
+      <div class="invite-stats" id="invite-stats">
+        <!-- Rendered by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Quota detail -->
+  <div id="invite-quota-detail"></div>
+</div>
+
+<!-- ================================================================
+     BOTTOM NAV
+     ================================================================ -->
+<div class="bottom-nav" id="bottom-nav">
+  <button class="nav-item active" data-page="home">
+    <span class="nav-icon">📊</span>数据
+  </button>
+  <button class="nav-item" data-page="manage">
+    <span class="nav-icon">📋</span>广告
+  </button>
+  <button class="nav-item" data-page="accounts">
+    <span class="nav-icon">👤</span>账号
+  </button>
+  <button class="nav-item" data-page="settings">
+    <span class="nav-icon">⚙️</span>设置
+  </button>
+</div>
+
+<!-- ================================================================
+     MODAL: Add Account
+     ================================================================ -->
+<div class="modal-overlay" id="modal-add-account">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3>授权添加广告账号</h3>
+    <div id="modal-add-account-quota" style="margin-bottom:16px;"></div>
+    <button class="modal-option" data-action="authorize" data-platform="meta">
+      <div class="modal-option-icon meta-bg">M</div>
+      <div class="modal-option-text">
+        <div class="modal-option-title">Meta (Facebook) 广告</div>
+        <div class="modal-option-desc" id="modal-meta-quota">--</div>
+      </div>
+    </button>
+    <button class="modal-option" data-action="authorize" data-platform="tiktok">
+      <div class="modal-option-icon tiktok-bg">T</div>
+      <div class="modal-option-text">
+        <div class="modal-option-title">TikTok 广告</div>
+        <div class="modal-option-desc" id="modal-tiktok-quota">--</div>
+      </div>
+    </button>
+    <button class="modal-btn cancel" data-action="close-modal" data-modal="modal-add-account">取消</button>
+  </div>
+</div>
+
+<!-- ================================================================
+     MODAL: Date Picker
+     ================================================================ -->
+<div class="modal-overlay" id="modal-date">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3>选择日期范围</h3>
+    <div class="date-options" id="date-options">
+      <!-- Rendered by JS from config -->
+    </div>
+    <div id="custom-date-area" style="display:none;">
+      <div class="custom-date-row">
+        <input type="date" id="custom-start" value="2026-03-01">
+        <span style="line-height:40px;color:var(--text-secondary);">至</span>
+        <input type="date" id="custom-end" value="2026-03-16">
+      </div>
+    </div>
+    <button class="modal-btn primary" data-action="apply-date-filter">确认</button>
+    <button class="modal-btn cancel" data-action="close-modal" data-modal="modal-date">取消</button>
+  </div>
+</div>
+
+<!-- ================================================================
+     MODAL: Budget Edit
+     ================================================================ -->
+<div class="modal-overlay" id="modal-budget">
+  <div class="modal">
+    <div class="modal-handle"></div>
+    <h3>调整预算</h3>
+    <div id="budget-target-name" style="text-align:center;font-size:13px;color:var(--text-secondary);margin-top:-12px;margin-bottom:16px;"></div>
+    <div class="budget-input-group">
+      <label>日预算金额</label>
+      <div class="budget-input-wrap">
+        <span class="currency">$</span>
+        <input type="number" id="budget-input" placeholder="输入预算金额" value="">
+      </div>
+      <div class="quick-amounts" id="quick-amounts">
+        <!-- Rendered by JS from config -->
+      </div>
+    </div>
+    <button class="modal-btn primary" data-action="save-budget">确认修改</button>
+    <button class="modal-btn cancel" data-action="close-modal" data-modal="modal-budget">取消</button>
+  </div>
+</div>
+
+<script>
+/* ==============================================================
+   APP: AdPilot — Modular Architecture
+   ==============================================================
+   Structure:
+   1. Config          — All config constants & data
+   2. State           — Reactive app state
+   3. Utils           — Pure utility functions
+   4. Renderers       — DOM rendering functions (one per component)
+   5. Actions         — Business logic / event handlers
+   6. Event Binding   — Centralized delegation
+   7. Init            — Bootstrap
+   ============================================================== */
+
+// ===================== 1. CONFIG =====================
+
+const CONFIG = {
+  // Hierarchy definition — extend here to add new levels
+  levels: ['account', 'campaign', 'adset', 'ad'],
+  levelLabels: {
+    account: '广告账号',
+    campaign: '广告系列',
+    adset: '广告组',
+    ad: '广告',
+  },
+  // Date presets — add/remove entries to change date picker options
+  datePresets: [
+    { key: 'today',     label: '今天' },
+    { key: 'yesterday', label: '昨天' },
+    { key: '7d',        label: '近7天' },
+    { key: '14d',       label: '近14天' },
+    { key: '30d',       label: '近30天' },
+    { key: 'thisMonth', label: '本月' },
+    { key: 'lastMonth', label: '上月' },
+    { key: 'custom',    label: '自定义', rangeText: '选择起止日期' },
+  ],
+  // Date multipliers — simulate data volume changes per range
+  dateMultipliers: {
+    today: 0.14, yesterday: 0.15, '7d': 1, '14d': 1.85,
+    '30d': 3.6, thisMonth: 2.3, lastMonth: 2.1, custom: 1.5,
+  },
+  // Chart metrics — add entries to extend chart tabs
+  chartMetrics: [
+    { key: 'spend',       label: '消耗' },
+    { key: 'clicks',      label: '点击' },
+    { key: 'impressions', label: '展示' },
+    { key: 'ctr',         label: 'CTR' },
+    { key: 'cpc',         label: 'CPC' },
+    { key: 'conversions', label: '转化' },
+    { key: 'cpa',         label: 'CPA' },
+  ],
+  chartLabels: ['03/10', '03/11', '03/12', '03/13', '03/14', '03/15', '03/16'],
+  // Home stats — configure which cards to show on homepage
+  homeStats: [
+    { key: 'spend',       icon: '💰', label: '总消耗',   value: '$12.8K',  change: 12.5, dir: 'up' },
+    { key: 'clicks',      icon: '👆', label: '总点击',   value: '45.2K',   change: 8.3,  dir: 'up' },
+    { key: 'impressions', icon: '👁️', label: '总展示',  value: '1.2M',    change: 2.1,  dir: 'down' },
+    { key: 'conversions', icon: '🎯', label: '总转化',   value: '3,862',   change: 15.7, dir: 'up' },
+  ],
+  // Quick budget amounts
+  quickBudgets: [50, 100, 200, 500, 1000],
+  // Reference date for demo
+  refDate: new Date(2026, 2, 16),
+  // Auth & Quota
+  baseQuotaPerPlatform: 5,
+  bonusPerInvite: 5,
+  csContacts: {
+    wechat: { label: '企业微信获客助手', url: 'https://work.weixin.qq.com/ca/xxxxxx' },
+    telegram: { label: 'Telegram', url: 'https://t.me/AdPilot_Support' },
+  },
+};
+
+// Chart raw data
+const chartData = {
+  spend:       [1520, 1780, 1640, 1950, 2100, 1890, 1920],
+  clicks:      [5800, 6200, 5900, 7100, 7500, 6400, 6300],
+  impressions: [160, 175, 168, 190, 210, 180, 185],
+  ctr:         [3.6, 3.5, 3.5, 3.7, 3.6, 3.6, 3.4],
+  cpc:         [0.26, 0.29, 0.28, 0.27, 0.28, 0.30, 0.30],
+  conversions: [480, 520, 510, 620, 680, 560, 492],
+  cpa:         [3.17, 3.42, 3.22, 3.15, 3.09, 3.38, 3.90],
+};
+
+// Ad data (hierarchical via parentId)
+const adsData = {
+  account: [
+    { id: 'act_284910', name: 'Brand Store US',      platform: 'meta',   on: true,  budget: 500, spend: 5170, clicks: 18200, impressions: 420000, conversions: 1580 },
+    { id: 'act_395710', name: 'EU Market Expansion',  platform: 'meta',   on: true,  budget: 300, spend: 1890, clicks: 6800,  impressions: 210000, conversions: 520 },
+    { id: 'tt_847201',  name: 'TikTok JP Main',       platform: 'tiktok', on: true,  budget: 600, spend: 3980, clicks: 14500, impressions: 380000, conversions: 1240 },
+    { id: 'tt_937102',  name: 'TikTok KR Test',       platform: 'tiktok', on: false, budget: 200, spend: 1760, clicks: 5700,  impressions: 190000, conversions: 522 },
+  ],
+  campaign: [
+    { id: 'cp_001', parentId: 'act_284910', name: 'US_Retargeting_March',  platform: 'meta',   on: true,  budget: 200, spend: 3280, clicks: 11200, impressions: 180000, conversions: 1020 },
+    { id: 'cp_005', parentId: 'act_284910', name: 'US_Lookalike_Test',     platform: 'meta',   on: true,  budget: 80,  spend: 960,  clicks: 3100,  impressions: 95000,  conversions: 280 },
+    { id: 'cp_002', parentId: 'act_395710', name: 'EU_Prospecting_Q1',     platform: 'meta',   on: true,  budget: 150, spend: 1890, clicks: 6800,  impressions: 210000, conversions: 520 },
+    { id: 'cp_003', parentId: 'tt_847201',  name: 'JP_E-commerce_Spring',  platform: 'tiktok', on: true,  budget: 300, spend: 2560, clicks: 9200,  impressions: 240000, conversions: 780 },
+    { id: 'cp_006', parentId: 'tt_847201',  name: 'JP_Brand_Awareness',    platform: 'tiktok', on: true,  budget: 250, spend: 1680, clicks: 8400,  impressions: 320000, conversions: 340 },
+    { id: 'cp_004', parentId: 'tt_937102',  name: 'KR_App_Install_V2',     platform: 'tiktok', on: false, budget: 100, spend: 1420, clicks: 5300,  impressions: 140000, conversions: 460 },
+  ],
+  adset: [
+    { id: 'as_001', parentId: 'cp_001', name: 'US_Retarget_25-44_M', platform: 'meta',   on: true,  budget: 100, spend: 1840, clicks: 6300,  impressions: 92000,  conversions: 580 },
+    { id: 'as_002', parentId: 'cp_001', name: 'US_Retarget_25-44_F', platform: 'meta',   on: true,  budget: 100, spend: 1440, clicks: 4900,  impressions: 88000,  conversions: 440 },
+    { id: 'as_003', parentId: 'cp_002', name: 'EU_Interest_Fashion',  platform: 'meta',   on: true,  budget: 80,  spend: 980,  clicks: 3400,  impressions: 105000, conversions: 310 },
+    { id: 'as_004', parentId: 'cp_003', name: 'JP_Cart_Abandoners',   platform: 'tiktok', on: true,  budget: 150, spend: 1360, clicks: 4800,  impressions: 120000, conversions: 420 },
+    { id: 'as_005', parentId: 'cp_003', name: 'JP_New_Visitors',      platform: 'tiktok', on: true,  budget: 150, spend: 1200, clicks: 4400,  impressions: 120000, conversions: 360 },
+    { id: 'as_006', parentId: 'cp_004', name: 'KR_Broad_18-30',       platform: 'tiktok', on: false, budget: 100, spend: 1420, clicks: 5300,  impressions: 140000, conversions: 460 },
+  ],
+  ad: [
+    { id: 'ad_001', parentId: 'as_001', name: 'Video_Product_Demo_15s', platform: 'meta',   on: true,  budget: 50,  spend: 920,  clicks: 3200, impressions: 46000,  conversions: 290 },
+    { id: 'ad_002', parentId: 'as_001', name: 'Carousel_BestSellers',   platform: 'meta',   on: true,  budget: 50,  spend: 860,  clicks: 2900, impressions: 42000,  conversions: 260 },
+    { id: 'ad_003', parentId: 'as_002', name: 'Static_Sale_Banner',     platform: 'meta',   on: false, budget: 30,  spend: 340,  clicks: 980,  impressions: 28000,  conversions: 68 },
+    { id: 'ad_004', parentId: 'as_004', name: 'UGC_Unboxing_JP',       platform: 'tiktok', on: true,  budget: 80,  spend: 720,  clicks: 2600, impressions: 64000,  conversions: 210 },
+    { id: 'ad_005', parentId: 'as_005', name: 'Spark_Ad_Influencer',    platform: 'tiktok', on: true,  budget: 70,  spend: 640,  clicks: 2200, impressions: 56000,  conversions: 185 },
+    { id: 'ad_006', parentId: 'as_003', name: 'Dynamic_Product_Feed',   platform: 'meta',   on: true,  budget: 60,  spend: 580,  clicks: 1800, impressions: 38000,  conversions: 142 },
+    { id: 'ad_007', parentId: 'as_006', name: 'TopView_KR_Spring',      platform: 'tiktok', on: false, budget: 100, spend: 1420, clicks: 5300, impressions: 140000, conversions: 460 },
+  ],
+};
+
+// ===================== 2. STATE =====================
+
+const state = {
+  // Auth
+  isLoggedIn: false,
+  isContactBound: false,
+  user: null, // { email, contactType, contactId, inviteCode, invitedCount }
+  selectedContactType: null, // 'wechat' | 'telegram'
+  // App
+  currentPage: 'home',
+  // Home
+  selectedPlatform: 'all',
+  homeDatePreset: '7d',
+  currentChartType: 'spend',
+  // Ads
+  adsDimension: 'account',
+  adsDatePreset: '7d',
+  isDrillDown: false,
+  navPath: [{ level: 'account', parentId: null, name: '全部账号' }],
+  // Date modal
+  dateModalSource: 'home', // 'home' | 'ads'
+  pendingDatePreset: '7d',
+  // Budget modal
+  budgetTarget: null, // { level, idx }
+};
+
+// ===================== 3. UTILS =====================
+
+const Utils = {
+  /** Get child level key */
+  childLevel(level) {
+    const idx = CONFIG.levels.indexOf(level);
+    return idx < CONFIG.levels.length - 1 ? CONFIG.levels[idx + 1] : null;
+  },
+
+  /** Format date as MM.DD */
+  fmtDate(d) {
+    return (d.getMonth() + 1).toString().padStart(2, '0') + '.' + d.getDate().toString().padStart(2, '0');
+  },
+
+  /** Format date as YYYY-MM-DD */
+  fmtDateFull(d) {
+    return d.getFullYear() + '-' + (d.getMonth() + 1).toString().padStart(2, '0') + '-' + d.getDate().toString().padStart(2, '0');
+  },
+
+  /** Get date range for a preset */
+  getDateRange(preset) {
+    const today = new Date(CONFIG.refDate);
+    let start, end = new Date(today);
+    switch (preset) {
+      case 'today':     start = new Date(today); break;
+      case 'yesterday': start = new Date(today); start.setDate(start.getDate() - 1); end = new Date(start); break;
+      case '7d':        start = new Date(today); start.setDate(start.getDate() - 6); break;
+      case '14d':       start = new Date(today); start.setDate(start.getDate() - 13); break;
+      case '30d':       start = new Date(today); start.setDate(start.getDate() - 29); break;
+      case 'thisMonth': start = new Date(2026, 2, 1); break;
+      case 'lastMonth': start = new Date(2026, 1, 1); end = new Date(2026, 1, 28); break;
+      default:          start = new Date(today); start.setDate(start.getDate() - 6);
+    }
+    return { start, end };
+  },
+
+  /** Format chart value with type-aware units */
+  fmtChartVal(val, type) {
+    if (type === 'spend') return '$' + (val >= 1000 ? (val / 1000).toFixed(1) + 'K' : val);
+    if (type === 'clicks' || type === 'conversions') return val >= 1000 ? (val / 1000).toFixed(1) + 'K' : val;
+    if (type === 'impressions') return val + 'K';
+    if (type === 'ctr') return val + '%';
+    if (type === 'cpc' || type === 'cpa') return '$' + val.toFixed(2);
+    return val;
+  },
+
+  /** Get ads data multiplier for current date preset */
+  getMultiplier() {
+    return CONFIG.dateMultipliers[state.adsDatePreset] || 1;
+  },
+
+  /** Get items by level, optionally filtered by parentId */
+  getItems(level, parentId) {
+    const items = adsData[level];
+    return parentId ? items.filter(i => i.parentId === parentId) : items;
+  },
+
+  /** Get original index of item in its level array */
+  getOrigIdx(level, id) {
+    return adsData[level].findIndex(i => i.id === id);
+  },
+
+  /** Get current nav level info */
+  getCurrentNav() {
+    return state.navPath[state.navPath.length - 1];
+  },
+
+  /** Format current timestamp */
+  nowTimestamp() {
+    const now = new Date();
+    return now.getFullYear() + '-' +
+      (now.getMonth() + 1).toString().padStart(2, '0') + '-' +
+      now.getDate().toString().padStart(2, '0') + ' ' +
+      now.getHours().toString().padStart(2, '0') + ':' +
+      now.getMinutes().toString().padStart(2, '0') + ':' +
+      now.getSeconds().toString().padStart(2, '0');
+  },
+
+  nowTimeShort() {
+    const now = new Date();
+    return now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+  },
+
+  /** Get account quota for a platform */
+  getQuota(platform) {
+    if (!state.user) return CONFIG.baseQuotaPerPlatform;
+    return CONFIG.baseQuotaPerPlatform + (state.user.invitedCount || 0) * CONFIG.bonusPerInvite;
+  },
+
+  /** Get current account count for a platform */
+  getUsedCount(platform) {
+    return adsData.account.filter(a => a.platform === platform).length;
+  },
+
+  /** Generate random invite code */
+  generateInviteCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = 'AP-';
+    for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return code;
+  },
+
+  /** Date label for a preset */
+  dateLabel(preset) {
+    const p = CONFIG.datePresets.find(d => d.key === preset);
+    if (!p) return '';
+    if (preset === 'custom') {
+      const s = document.getElementById('custom-start').value;
+      const e = document.getElementById('custom-end').value;
+      return s.slice(5).replace('-', '.') + ' - ' + e.slice(5).replace('-', '.') + ' (自定义)';
+    }
+    const r = this.getDateRange(preset);
+    return this.fmtDate(r.start) + ' - ' + this.fmtDate(r.end) + ' (' + p.label + ')';
+  },
+};
+
+// ===================== 4. RENDERERS =====================
+
+const Render = {
+  /** Home stats cards */
+  homeStats() {
+    const el = document.getElementById('home-stats');
+    el.innerHTML = CONFIG.homeStats.map(s => `
+      <div class="stat-card">
+        <div class="icon">${s.icon}</div>
+        <div class="value">${s.value}</div>
+        <div class="label">${s.label}</div>
+        <div class="change ${s.dir}">↑ ${s.change}%</div>
+      </div>
+    `).join('');
+    document.getElementById('home-update-label').textContent = '数据更新于 ' + Utils.nowTimestamp();
+  },
+
+  /** Chart tabs */
+  chartTabs() {
+    const el = document.getElementById('chart-tabs');
+    el.innerHTML = CONFIG.chartMetrics.map((m, i) => `
+      <button class="chart-tab ${i === 0 ? 'active' : ''}" data-action="switch-chart" data-type="${m.key}">${m.label}</button>
+    `).join('');
+  },
+
+  /** Chart bars */
+  chart(type) {
+    state.currentChartType = type;
+    const data = chartData[type];
+    const max = Math.max(...data);
+    const area = document.getElementById('chart-area');
+    area.innerHTML = data.map((val, i) => `
+      <div class="chart-bar-group">
+        <div class="chart-bar-val">${Utils.fmtChartVal(val, type)}</div>
+        <div class="chart-bar" style="height:${Math.max(8, val / max * 140)}px"></div>
+        <div class="chart-label">${CONFIG.chartLabels[i]}</div>
+      </div>
+    `).join('');
+  },
+
+  /** Accounts list */
+  accounts() {
+    const el = document.getElementById('accounts-list');
+    el.innerHTML = adsData.account.map(acc => {
+      const isMeta = acc.platform === 'meta';
+      const statusClass = acc.on ? 'active' : 'paused';
+      const statusEmoji = acc.on ? '🟢' : '🟡';
+      const statusText = acc.on ? '活跃' : '受限';
+      const campaigns = Utils.getItems('campaign', acc.id).length;
+      const ctr = ((acc.clicks / acc.impressions) * 100).toFixed(1);
+      return `
+      <div class="account-card">
+        <div class="account-card-top">
+          <div class="account-avatar ${isMeta ? 'meta-bg' : 'tiktok-bg'}">${isMeta ? 'M' : 'T'}</div>
+          <div>
+            <div class="account-name">${acc.name}</div>
+            <div class="account-id">ID: ${acc.id}</div>
+            <div class="account-status ${statusClass}">${statusEmoji} ${statusText}</div>
+          </div>
+        </div>
+        <div class="account-stats-row">
+          <div class="account-stat"><div class="val">$${acc.spend.toLocaleString()}</div><div class="lbl">本周消耗</div></div>
+          <div class="account-stat"><div class="val">${campaigns}</div><div class="lbl">广告系列</div></div>
+          <div class="account-stat"><div class="val">${ctr}%</div><div class="lbl">CTR</div></div>
+        </div>
+      </div>`;
+    }).join('');
+
+    // Update settings count
+    const countEl = document.getElementById('settings-account-count');
+    if (countEl) countEl.textContent = '已绑定 ' + adsData.account.length + ' 个广告账号';
+
+    // Render quota on accounts page
+    this.quota('accounts-quota');
+
+    // Invite CTA — show when any platform is at 50%+ usage
+    const quota = Utils.getQuota();
+    const metaUsed = Utils.getUsedCount('meta');
+    const tiktokUsed = Utils.getUsedCount('tiktok');
+    const ctaEl = document.getElementById('accounts-invite-cta');
+    if (ctaEl) {
+      if (metaUsed >= quota || tiktokUsed >= quota) {
+        ctaEl.innerHTML = `
+          <div style="margin:0 20px 16px;padding:16px;background:linear-gradient(135deg,#FEF3C7,#FDE68A);border-radius:var(--r-lg);text-align:center;">
+            <div style="font-size:14px;font-weight:700;color:#92400E;margin-bottom:4px;">⚠️ 账号额度已满</div>
+            <div style="font-size:12px;color:#92400E;margin-bottom:12px;">邀请好友注册，每人可增加 5 个账号额度</div>
+            <button style="padding:10px 24px;background:#92400E;color:white;border:none;border-radius:var(--r-md);font-size:13px;font-weight:600;cursor:pointer;" data-action="navigate" data-target="invite">邀请好友，扩充额度</button>
+          </div>`;
+      } else if (metaUsed >= quota * 0.5 || tiktokUsed >= quota * 0.5) {
+        ctaEl.innerHTML = `
+          <div style="margin:0 20px 16px;padding:14px;background:var(--primary-bg);border:1px solid #DDD6FE;border-radius:var(--r-lg);display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--primary);">🎁 额度不够用？</div>
+              <div style="font-size:11px;color:var(--text-secondary);">邀请好友，每人 +5 额度</div>
+            </div>
+            <button style="padding:8px 16px;background:var(--primary);color:white;border:none;border-radius:var(--r-sm);font-size:12px;font-weight:600;cursor:pointer;" data-action="navigate" data-target="invite">去邀请</button>
+          </div>`;
+      } else {
+        ctaEl.innerHTML = '';
+      }
+    }
+  },
+
+  /** Dimension tabs */
+  dimensionTabs() {
+    const el = document.getElementById('dimension-tabs');
+    el.innerHTML = CONFIG.levels.map(lv => {
+      const count = adsData[lv].length;
+      const active = state.adsDimension === lv;
+      return `<button class="dimension-tab ${active ? 'active' : ''}" data-action="switch-dimension" data-dim="${lv}">${CONFIG.levelLabels[lv]}<span class="tab-count">${count}</span></button>`;
+    }).join('');
+  },
+
+  /** Breadcrumb */
+  breadcrumb() {
+    const bc = document.getElementById('ads-breadcrumb');
+    if (!state.isDrillDown || state.navPath.length <= 1) { bc.innerHTML = ''; return; }
+    bc.innerHTML = state.navPath.map((p, i) => {
+      const isLast = i === state.navPath.length - 1;
+      const label = i === 0 ? CONFIG.levelLabels[state.navPath[0].level] : p.name;
+      if (isLast) return `<button class="crumb current">${label}</button>`;
+      return `<button class="crumb" data-action="breadcrumb-nav" data-idx="${i}">${label}</button><span class="sep">›</span>`;
+    }).join('');
+  },
+
+  /** Ads summary card */
+  summary() {
+    const current = Utils.getCurrentNav();
+    const level = current.level;
+    const items = state.isDrillDown ? Utils.getItems(level, current.parentId) : adsData[level];
+    const m = Utils.getMultiplier();
+    const container = document.getElementById('ads-summary');
+
+    if (!items.length) { container.innerHTML = ''; return; }
+
+    const totals = items.reduce((acc, item) => {
+      acc.spend += item.spend; acc.clicks += item.clicks;
+      acc.impressions += item.impressions; acc.conversions += item.conversions;
+      acc.budget += item.budget;
+      return acc;
+    }, { spend: 0, clicks: 0, impressions: 0, conversions: 0, budget: 0 });
+
+    const ts = Math.round(totals.spend * m), tc = Math.round(totals.clicks * m);
+    const ti = Math.round(totals.impressions * m), tv = Math.round(totals.conversions * m);
+    const scopeLabel = state.isDrillDown ? state.navPath[state.navPath.length - 1].name + ' 下' : '全部';
+    const presetObj = CONFIG.datePresets.find(p => p.key === state.adsDatePreset);
+    const dateLbl = presetObj ? presetObj.label : '近7天';
+
+    container.innerHTML = `
+      <div class="summary-card">
+        <div class="summary-title">📊 ${scopeLabel}${CONFIG.levelLabels[level]}汇总 · 共 ${items.length} 条 · ${dateLbl}</div>
+        <div class="summary-stats">
+          <div class="summary-stat"><div class="val">$${(ts / 1000).toFixed(1)}K</div><div class="lbl">总消耗</div></div>
+          <div class="summary-stat"><div class="val">${(tc / 1000).toFixed(1)}K</div><div class="lbl">总点击</div></div>
+          <div class="summary-stat"><div class="val">${(ti / 1000).toFixed(0)}K</div><div class="lbl">总展示</div></div>
+          <div class="summary-stat"><div class="val">${tv.toLocaleString()}</div><div class="lbl">总转化</div></div>
+          <div class="summary-stat"><div class="val">$${(ts / tv).toFixed(2)}</div><div class="lbl">CPA</div></div>
+        </div>
+      </div>`;
+  },
+
+  /** Manage list (ad cards) */
+  manageList(filter = '') {
+    const current = Utils.getCurrentNav();
+    const level = current.level;
+    let items = state.isDrillDown ? Utils.getItems(level, current.parentId) : [...adsData[level]];
+
+    if (filter) {
+      const q = filter.toLowerCase();
+      items = items.filter(i => i.name.toLowerCase().includes(q) || i.id.includes(q));
+    }
+
+    // Default sort: spend descending
+    const m = Utils.getMultiplier();
+    items.sort((a, b) => (b.spend * m) - (a.spend * m));
+
+    const list = document.getElementById('manage-list');
+    if (!items.length) {
+      list.innerHTML = `<div class="empty-state"><div class="emoji">🔍</div><div class="msg">未找到匹配的${CONFIG.levelLabels[level]}</div></div>`;
+      return;
+    }
+
+    const child = Utils.childLevel(level);
+    const hasChildren = !!child;
+    const nextLabel = hasChildren ? CONFIG.levelLabels[child] : '';
+
+    list.innerHTML = items.map(item => {
+      const origIdx = Utils.getOrigIdx(level, item.id);
+      const childCount = hasChildren ? Utils.getItems(child, item.id).length : 0;
+      return `
+      <div class="manage-card ${hasChildren ? 'clickable' : ''}" ${hasChildren ? `data-action="drill-down" data-level="${level}" data-id="${item.id}" data-name="${item.name}"` : ''}>
+        <div class="manage-card-top">
+          <div class="manage-card-info">
+            <div class="manage-card-name">
+              <span class="platform-badge ${item.platform}">${item.platform === 'meta' ? 'Meta' : 'TikTok'}</span>
+              ${item.name}
+            </div>
+            <div class="manage-card-id">ID: ${item.id}</div>
+          </div>
+          <button class="toggle ${item.on ? 'on' : ''}" data-action="toggle-ad" data-level="${level}" data-idx="${origIdx}"></button>
+        </div>
+        <div class="manage-card-stats">
+          <div class="manage-stat"><div class="val">$${Math.round(item.spend * m).toLocaleString()}</div><div class="lbl">消耗</div></div>
+          <div class="manage-stat"><div class="val">${(item.clicks * m / 1000).toFixed(1)}K</div><div class="lbl">点击</div></div>
+          <div class="manage-stat"><div class="val">${(item.impressions * m / 1000).toFixed(0)}K</div><div class="lbl">展示</div></div>
+          <div class="manage-stat"><div class="val">${Math.round(item.conversions * m).toLocaleString()}</div><div class="lbl">转化</div></div>
+          <div class="manage-stat"><div class="val">$${(item.spend / item.conversions).toFixed(2)}</div><div class="lbl">CPA</div></div>
+        </div>
+        <div class="manage-card-budget">
+          <div>
+            <div class="budget-label">日预算</div>
+            <div class="budget-value">$${item.budget}</div>
+          </div>
+          <button class="budget-edit" data-action="open-budget" data-level="${level}" data-idx="${origIdx}">调整预算</button>
+        </div>
+        ${hasChildren ? `<div class="drill-hint">📂 包含 ${childCount} 个${nextLabel}，点击查看 →</div>` : ''}
+      </div>`;
+    }).join('');
+  },
+
+  /** Full ads page render */
+  adsPage(filter = '') {
+    const current = Utils.getCurrentNav();
+    document.getElementById('ads-page-title').textContent = CONFIG.levelLabels[current.level];
+    document.getElementById('ads-search-input').value = '';
+    document.getElementById('ads-search-input').placeholder = '搜索' + CONFIG.levelLabels[current.level] + '名称或ID...';
+    this.breadcrumb();
+    this.summary();
+    this.manageList(filter);
+  },
+
+  /** Date picker modal options */
+  dateOptions() {
+    const el = document.getElementById('date-options');
+    el.innerHTML = CONFIG.datePresets.map(p => {
+      const isCustom = p.key === 'custom';
+      const selected = state.pendingDatePreset === p.key ? ' selected' : '';
+      let rangeText = '';
+      if (isCustom) {
+        rangeText = p.rangeText;
+      } else {
+        const r = Utils.getDateRange(p.key);
+        rangeText = Utils.fmtDate(r.start) + ' - ' + Utils.fmtDate(r.end);
+      }
+      return `<button class="date-option${selected}" data-action="select-date-preset" data-preset="${p.key}">
+        <span>${p.label}</span><span class="date-range">${rangeText}</span>
+      </button>`;
+    }).join('');
+    document.getElementById('custom-date-area').style.display = state.pendingDatePreset === 'custom' ? 'block' : 'none';
+  },
+
+  /** Quota display (used in settings + invite page) */
+  quota(containerId) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    const quota = Utils.getQuota();
+    const metaUsed = Utils.getUsedCount('meta');
+    const tiktokUsed = Utils.getUsedCount('tiktok');
+    const metaPct = Math.min(100, (metaUsed / quota) * 100);
+    const tiktokPct = Math.min(100, (tiktokUsed / quota) * 100);
+
+    el.innerHTML = `
+      <div class="quota-card">
+        <div class="quota-header">
+          <div class="title">📊 账号配额</div>
+          <div style="font-size:12px;color:var(--text-secondary);">总额度：每平台 ${quota} 个</div>
+        </div>
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span class="platform-badge meta">Meta</span>
+            <span style="font-size:12px;color:var(--text-secondary);">广告账号</span>
+          </div>
+          <div class="quota-bar-wrap"><div class="quota-bar meta" style="width:${metaPct}%"></div></div>
+          <div class="quota-detail"><span class="used">${metaUsed} / ${quota}</span><span>${metaUsed >= quota ? '⚠️ 已满' : '可用 ' + (quota - metaUsed) + ' 个'}</span></div>
+        </div>
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span class="platform-badge tiktok">TikTok</span>
+            <span style="font-size:12px;color:var(--text-secondary);">广告账号</span>
+          </div>
+          <div class="quota-bar-wrap"><div class="quota-bar tiktok" style="width:${tiktokPct}%"></div></div>
+          <div class="quota-detail"><span class="used">${tiktokUsed} / ${quota}</span><span>${tiktokUsed >= quota ? '⚠️ 已满' : '可用 ' + (quota - tiktokUsed) + ' 个'}</span></div>
+        </div>
+      </div>`;
+  },
+
+  /** Invite page stats */
+  inviteStats() {
+    if (!state.user) return;
+    const el = document.getElementById('invite-stats');
+    if (!el) return;
+    const cnt = state.user.invitedCount || 0;
+    const bonus = cnt * CONFIG.bonusPerInvite;
+    el.innerHTML = `
+      <div class="invite-stat"><div class="val">${cnt}</div><div class="lbl">已邀请</div></div>
+      <div class="invite-stat"><div class="val">+${bonus}</div><div class="lbl">获得额度</div></div>
+      <div class="invite-stat"><div class="val">${Utils.getQuota()}</div><div class="lbl">当前总额度</div></div>
+    `;
+    document.getElementById('invite-code-display').value = state.user.inviteCode || '--';
+    this.quota('invite-quota-detail');
+  },
+
+  /** Quick budget buttons */
+  quickBudgets() {
+    const el = document.getElementById('quick-amounts');
+    el.innerHTML = CONFIG.quickBudgets.map(v =>
+      `<button class="quick-amount" data-action="set-budget" data-val="${v}">$${v}</button>`
+    ).join('');
+  },
+};
+
+// ===================== 5. ACTIONS =====================
+
+const Actions = {
+  /** Navigate to page */
+  navigate(page) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+
+    // Update bottom nav
+    document.querySelectorAll('#bottom-nav .nav-item').forEach(n => n.classList.remove('active'));
+    const navMap = { home: 0, manage: 1, accounts: 2, settings: 3 };
+    if (navMap[page] !== undefined) {
+      document.querySelectorAll('#bottom-nav .nav-item')[navMap[page]].classList.add('active');
+    }
+
+    state.currentPage = page;
+
+    if (page === 'manage') {
+      state.adsDimension = 'account';
+      state.isDrillDown = false;
+      state.navPath = [{ level: 'account', parentId: null, name: '全部账号' }];
+      Render.dimensionTabs();
+      Render.adsPage();
+    }
+    if (page === 'accounts') {
+      Render.accounts();
+    }
+    if (page === 'settings') {
+      Render.quota('settings-quota');
+      Actions.updateSettingsUser();
+    }
+    if (page === 'invite') {
+      Render.inviteStats();
+    }
+    window.scrollTo(0, 0);
+  },
+
+  /** Switch platform filter (home) */
+  switchPlatform(platform) {
+    state.selectedPlatform = platform;
+    document.querySelectorAll('#platform-tabs .platform-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`#platform-tabs [data-platform="${platform}"]`).classList.add('active');
+    Actions.toast(platform === 'all' ? '显示全部平台数据' : '筛选 ' + platform.charAt(0).toUpperCase() + platform.slice(1) + ' 数据');
+  },
+
+  /** Switch chart type */
+  switchChart(type) {
+    document.querySelectorAll('#chart-tabs .chart-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`#chart-tabs [data-type="${type}"]`).classList.add('active');
+    Render.chart(type);
+  },
+
+  /** Switch dimension tab */
+  switchDimension(dim) {
+    state.adsDimension = dim;
+    state.isDrillDown = false;
+    state.navPath = [{ level: dim, parentId: null, name: CONFIG.levelLabels[dim] }];
+    Render.dimensionTabs();
+    Render.adsPage();
+    window.scrollTo(0, 0);
+  },
+
+  /** Drill down into child level */
+  drillDown(level, itemId, itemName) {
+    const next = Utils.childLevel(level);
+    if (!next) return;
+    if (!state.isDrillDown) {
+      state.isDrillDown = true;
+      state.navPath = [
+        { level, parentId: null, name: CONFIG.levelLabels[level] },
+        { level: next, parentId: itemId, name: itemName },
+      ];
+    } else {
+      state.navPath.push({ level: next, parentId: itemId, name: itemName });
+    }
+    state.adsDimension = next;
+    Render.dimensionTabs();
+    Render.adsPage();
+    window.scrollTo(0, 0);
+  },
+
+  /** Breadcrumb navigation */
+  breadcrumbNav(idx) {
+    state.navPath = state.navPath.slice(0, idx + 1);
+    state.adsDimension = Utils.getCurrentNav().level;
+    if (state.navPath.length <= 1) state.isDrillDown = false;
+    Render.dimensionTabs();
+    Render.adsPage();
+    window.scrollTo(0, 0);
+  },
+
+  /** Ads back button */
+  adsGoBack() {
+    if (state.isDrillDown && state.navPath.length > 1) {
+      state.navPath.pop();
+      state.adsDimension = Utils.getCurrentNav().level;
+      if (state.navPath.length <= 1) state.isDrillDown = false;
+      Render.dimensionTabs();
+      Render.adsPage();
+    } else {
+      Actions.navigate('home');
+    }
+  },
+
+  /** Toggle ad on/off */
+  toggleAd(level, idx) {
+    adsData[level][idx].on = !adsData[level][idx].on;
+    const item = adsData[level][idx];
+    Actions.toast(`${item.name} 已${item.on ? '开启' : '暂停'}`);
+    Render.manageList();
+  },
+
+  /** Open budget modal */
+  openBudget(level, idx) {
+    state.budgetTarget = { level, idx: parseInt(idx) };
+    const item = adsData[level][idx];
+    document.getElementById('budget-target-name').textContent = item.name;
+    document.getElementById('budget-input').value = item.budget;
+    document.getElementById('modal-budget').classList.add('show');
+  },
+
+  /** Set budget input value */
+  setBudget(val) {
+    document.getElementById('budget-input').value = val;
+  },
+
+  /** Save budget */
+  saveBudget() {
+    if (!state.budgetTarget) return;
+    const val = parseInt(document.getElementById('budget-input').value);
+    if (!val || val <= 0) { Actions.toast('请输入有效金额'); return; }
+    const item = adsData[state.budgetTarget.level][state.budgetTarget.idx];
+    const old = item.budget;
+    item.budget = val;
+    document.getElementById('modal-budget').classList.remove('show');
+    Actions.toast(`${item.name} 预算: $${old} → $${val}`);
+    Render.manageList();
+    Render.summary();
+  },
+
+  /** Open date modal */
+  openDateModal(source) {
+    state.dateModalSource = source;
+    state.pendingDatePreset = source === 'ads' ? state.adsDatePreset : state.homeDatePreset;
+    Render.dateOptions();
+    document.getElementById('modal-date').classList.add('show');
+  },
+
+  /** Select date preset (in modal) */
+  selectDatePreset(preset) {
+    state.pendingDatePreset = preset;
+    Render.dateOptions();
+  },
+
+  /** Apply date filter */
+  applyDateFilter() {
+    const label = Utils.dateLabel(state.pendingDatePreset);
+    if (state.dateModalSource === 'ads') {
+      state.adsDatePreset = state.pendingDatePreset;
+      document.getElementById('ads-date-display').textContent = label;
+      document.getElementById('ads-update-time').textContent = '更新于 ' + Utils.nowTimeShort();
+      Render.summary();
+      Render.manageList();
+      Actions.toast('广告数据日期已更新');
+    } else {
+      state.homeDatePreset = state.pendingDatePreset;
+      document.getElementById('date-display').textContent = label;
+      Actions.toast('日期已更新: ' + label);
+    }
+    document.getElementById('modal-date').classList.remove('show');
+  },
+
+  /** Authorize new account (with quota check) */
+  authorize(platform) {
+    const quota = Utils.getQuota();
+    const used = Utils.getUsedCount(platform);
+    document.getElementById('modal-add-account').classList.remove('show');
+    if (used >= quota) {
+      // Show quota-full toast then navigate to invite
+      Actions.toast(`${platform === 'meta' ? 'Meta' : 'TikTok'} 额度已满（${used}/${quota}），请邀请好友扩充`);
+      setTimeout(() => Actions.navigate('invite'), 1500);
+      return;
+    }
+    Actions.toast(`正在跳转至 ${platform === 'meta' ? 'Facebook Business' : 'TikTok For Business'} 授权页面...`);
+    setTimeout(() => Actions.toast('授权成功! 新账号已添加'), 2000);
+  },
+
+  // ---- AUTH ACTIONS ----
+
+  /** Switch between login/register */
+  authSwitch(target) {
+    document.querySelectorAll('.auth-page').forEach(p => p.classList.remove('active'));
+    document.getElementById('auth-' + target).classList.add('active');
+  },
+
+  /** Login */
+  authLogin() {
+    const email = document.getElementById('login-email').value.trim() || 'demo@adpilot.com';
+
+    // Simulate login — check if contact is bound
+    state.user = {
+      email,
+      contactType: 'wechat',
+      contactId: 'user_demo',
+      inviteCode: Utils.generateInviteCode(),
+      invitedCount: 2,
+    };
+    state.isLoggedIn = true;
+    state.isContactBound = true;
+    Actions.enterApp();
+  },
+
+  /** Register */
+  authRegister() {
+    const email = document.getElementById('reg-email').value.trim() || 'demo@adpilot.com';
+    const inviteCode = document.getElementById('reg-invite-code').value.trim();
+
+    // Create new user
+    state.user = {
+      email,
+      contactType: null,
+      contactId: null,
+      inviteCode: Utils.generateInviteCode(),
+      invitedCount: inviteCode ? 1 : 0, // If they used an invite code, simulate bonus
+    };
+    state.isLoggedIn = true;
+    state.isContactBound = false;
+
+    Actions.toast('注册成功！请添加客服');
+    // Go to contact bind page — reset its state
+    document.getElementById('contact-opt-wechat').style.display = '';
+    document.getElementById('contact-opt-telegram').style.display = '';
+    document.getElementById('contact-waiting').style.display = 'none';
+    document.querySelectorAll('.auth-page').forEach(p => p.classList.remove('active'));
+    document.getElementById('auth-contact-bind').classList.add('active');
+  },
+
+  /** Jump to external contact (wechat/telegram) */
+  jumpToContact(type) {
+    state.selectedContactType = type;
+
+    // Hide options, show waiting state
+    document.getElementById('contact-opt-wechat').style.display = 'none';
+    document.getElementById('contact-opt-telegram').style.display = 'none';
+    const waiting = document.getElementById('contact-waiting');
+    waiting.style.display = 'block';
+
+    if (type === 'wechat') {
+      // 企业微信获客助手链接 — 实际替换为真实获客助手URL
+      // window.location.href = 'https://work.weixin.qq.com/ca/xxxxxx';
+      document.getElementById('waiting-label').textContent = '已跳转至企业微信获客助手…';
+      Actions.toast('正在打开企业微信获客助手…');
+    } else {
+      // Telegram 直接走 t.me 链接
+      // window.location.href = 'https://t.me/AdPilot_Support';
+      document.getElementById('waiting-label').textContent = '已跳转至 Telegram…';
+      Actions.toast('正在打开 Telegram…');
+    }
+  },
+
+  /** Simulate deeplink callback (demo only) */
+  simulateDeeplink() {
+    if (!state.selectedContactType) return;
+    state.user.contactType = state.selectedContactType;
+    state.user.contactId = 'deeplink_verified';
+    state.isContactBound = true;
+    Actions.toast('客服添加成功！欢迎使用 AdPilot');
+    Actions.enterApp();
+  },
+
+  /** Enter the main app (hide auth, show app) */
+  enterApp() {
+    document.querySelectorAll('.auth-page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-home').classList.add('active');
+    document.getElementById('bottom-nav').style.display = 'flex';
+    // Update settings user info
+    Actions.updateSettingsUser();
+    Render.homeStats();
+    Render.accounts();
+    Render.quota('settings-quota');
+  },
+
+  /** Update settings page with user info */
+  updateSettingsUser() {
+    if (!state.user) return;
+    const userSection = document.querySelector('#page-settings [style*="text-align:center"]');
+    if (userSection) {
+      const initial = state.user.email.charAt(0).toUpperCase();
+      userSection.innerHTML = `
+        <div style="width:64px;height:64px;border-radius:20px;background:linear-gradient(135deg,var(--primary),#7C3AED);color:white;font-size:28px;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">${initial}</div>
+        <div style="font-size:18px;font-weight:700;">${state.user.email.split('@')[0]}</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-top:2px;">${state.user.email}</div>
+        <div style="display:inline-flex;align-items:center;gap:4px;margin-top:8px;padding:4px 12px;border-radius:20px;background:var(--primary-bg);font-size:11px;font-weight:600;color:var(--primary);">
+          ${state.user.contactType === 'wechat' ? '💬 微信已绑定' : '✈️ Telegram已绑定'}
+        </div>
+      `;
+    }
+  },
+
+  /** Logout */
+  authLogout() {
+    state.isLoggedIn = false;
+    state.isContactBound = false;
+    state.user = null;
+    // Hide app, show login
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('bottom-nav').style.display = 'none';
+    document.querySelectorAll('.auth-page').forEach(p => p.classList.remove('active'));
+    document.getElementById('auth-login').classList.add('active');
+    // Clear form inputs
+    document.getElementById('login-email').value = '';
+    document.getElementById('login-password').value = '';
+    Actions.toast('已退出登录');
+  },
+
+  /** Copy invite code */
+  copyInviteCode() {
+    const code = state.user?.inviteCode || '';
+    if (!code) return;
+    navigator.clipboard?.writeText(code).then(() => {
+      Actions.toast('邀请码已复制: ' + code);
+    }).catch(() => {
+      // Fallback
+      const input = document.getElementById('invite-code-display');
+      input.select();
+      document.execCommand('copy');
+      Actions.toast('邀请码已复制: ' + code);
+    });
+  },
+
+  copyDownloadLink() {
+    const link = document.getElementById('invite-download-link').value;
+    navigator.clipboard?.writeText(link).then(() => {
+      Actions.toast('下载链接已复制');
+    }).catch(() => {
+      const input = document.getElementById('invite-download-link');
+      input.select();
+      document.execCommand('copy');
+      Actions.toast('下载链接已复制');
+    });
+  },
+
+  /** Show toast */
+  toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 2000);
+  },
+
+  /** Open modal by id */
+  openModal(id) {
+    // Populate quota info in add-account modal
+    if (id === 'modal-add-account') {
+      const quota = Utils.getQuota();
+      const metaUsed = Utils.getUsedCount('meta');
+      const tiktokUsed = Utils.getUsedCount('tiktok');
+      const metaEl = document.getElementById('modal-meta-quota');
+      const tiktokEl = document.getElementById('modal-tiktok-quota');
+      if (metaEl) metaEl.textContent = metaUsed >= quota ? `额度已满 (${metaUsed}/${quota})` : `已用 ${metaUsed}/${quota} 个额度`;
+      if (tiktokEl) tiktokEl.textContent = tiktokUsed >= quota ? `额度已满 (${tiktokUsed}/${quota})` : `已用 ${tiktokUsed}/${quota} 个额度`;
+      if (metaEl) metaEl.style.color = metaUsed >= quota ? 'var(--danger)' : '';
+      if (tiktokEl) tiktokEl.style.color = tiktokUsed >= quota ? 'var(--danger)' : '';
+    }
+    document.getElementById(id).classList.add('show');
+  },
+
+  /** Close modal by id */
+  closeModal(id) {
+    document.getElementById(id).classList.remove('show');
+  },
+};
+
+// ===================== 6. EVENT BINDING =====================
+
+// Centralized event delegation — all clicks route through data-action attributes
+document.addEventListener('click', (e) => {
+  // Walk up to find the nearest [data-action] element
+  const target = e.target.closest('[data-action]');
+  if (!target) return;
+
+  const action = target.dataset.action;
+
+  switch (action) {
+    case 'navigate':
+      Actions.navigate(target.dataset.target);
+      break;
+
+    case 'toast':
+      Actions.toast(target.dataset.msg);
+      break;
+
+    case 'open-modal':
+      Actions.openModal(target.dataset.modal);
+      break;
+
+    case 'close-modal':
+      Actions.closeModal(target.dataset.modal);
+      break;
+
+    case 'open-date-modal':
+      Actions.openDateModal(target.dataset.source);
+      break;
+
+    case 'select-date-preset':
+      Actions.selectDatePreset(target.dataset.preset);
+      break;
+
+    case 'apply-date-filter':
+      Actions.applyDateFilter();
+      break;
+
+    case 'switch-chart':
+      Actions.switchChart(target.dataset.type);
+      break;
+
+    case 'switch-dimension':
+      Actions.switchDimension(target.dataset.dim);
+      break;
+
+    case 'drill-down':
+      Actions.drillDown(target.dataset.level, target.dataset.id, target.dataset.name);
+      break;
+
+    case 'breadcrumb-nav':
+      Actions.breadcrumbNav(parseInt(target.dataset.idx));
+      break;
+
+    case 'ads-back':
+      Actions.adsGoBack();
+      break;
+
+    case 'toggle-ad':
+      e.stopPropagation();
+      Actions.toggleAd(target.dataset.level, parseInt(target.dataset.idx));
+      break;
+
+    case 'open-budget':
+      e.stopPropagation();
+      Actions.openBudget(target.dataset.level, target.dataset.idx);
+      break;
+
+    case 'set-budget':
+      Actions.setBudget(target.dataset.val);
+      break;
+
+    case 'save-budget':
+      Actions.saveBudget();
+      break;
+
+    case 'authorize':
+      Actions.authorize(target.dataset.platform);
+      break;
+
+    // Auth actions
+    case 'auth-switch':
+      Actions.authSwitch(target.dataset.target);
+      break;
+    case 'auth-login':
+      Actions.authLogin();
+      break;
+    case 'auth-register':
+      Actions.authRegister();
+      break;
+    case 'jump-to-contact':
+      Actions.jumpToContact(target.dataset.type);
+      break;
+    case 'simulate-deeplink':
+      Actions.simulateDeeplink();
+      break;
+    case 'auth-logout':
+      Actions.authLogout();
+      break;
+    case 'copy-invite-code':
+      Actions.copyInviteCode();
+      break;
+    case 'copy-download-link':
+      Actions.copyDownloadLink();
+      break;
+  }
+});
+
+// Platform tabs click delegation
+document.getElementById('platform-tabs').addEventListener('click', (e) => {
+  const tab = e.target.closest('.platform-tab');
+  if (tab && tab.dataset.platform) {
+    Actions.switchPlatform(tab.dataset.platform);
+  }
+});
+
+// Bottom nav delegation
+document.getElementById('bottom-nav').addEventListener('click', (e) => {
+  const item = e.target.closest('.nav-item');
+  if (item && item.dataset.page) {
+    Actions.navigate(item.dataset.page);
+  }
+});
+
+// Modal overlay click-to-close
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.classList.remove('show');
+  });
+});
+
+// Ads search input
+document.getElementById('ads-search-input').addEventListener('input', (e) => {
+  Render.manageList(e.target.value);
+});
+
+// ===================== 7. INIT =====================
+
+(function init() {
+  // Start on login screen — hide bottom nav and all pages
+  document.getElementById('bottom-nav').style.display = 'none';
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+
+  // Pre-render components (they'll be shown once logged in)
+  Render.homeStats();
+  Render.chartTabs();
+  Render.chart('spend');
+  Render.quickBudgets();
+  Render.accounts();
+
+  // Set initial date displays
+  const defaultLabel = Utils.dateLabel('7d');
+  document.getElementById('date-display').textContent = defaultLabel;
+  document.getElementById('ads-date-display').textContent = defaultLabel;
+  document.getElementById('ads-update-time').textContent = '更新于 ' + Utils.nowTimeShort();
+})();
+</script>
+</body>
+</html>

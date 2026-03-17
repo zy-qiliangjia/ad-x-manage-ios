@@ -7,9 +7,9 @@ enum AdsNav: Hashable {
     case adGroups(advertiser: AdvertiserListItem, campaign: CampaignItem)
     case ads(advertiser: AdvertiserListItem, adgroup: AdGroupItem)
     // 全量视图
-    case allCampaigns
-    case allAdGroups
-    case allAds
+    case allCampaigns(platform: Platform?)
+    case allAdGroups(platform: Platform?)
+    case allAds(platform: Platform?)
     // 账号作用域跨层跳转
     case adGroupsForAccount(AdvertiserListItem)
     case adsForAccount(AdvertiserListItem)
@@ -31,9 +31,9 @@ struct AdsManageView: View {
                 DimensionTabRow(activeDimension: .account) { dim in
                     switch dim {
                     case .account:  break
-                    case .campaign: navPath = [.allCampaigns]
-                    case .adGroup:  navPath = [.allAdGroups]
-                    case .ad:       navPath = [.allAds]
+                    case .campaign: navPath = [.allCampaigns(platform: vm.platformFilter)]
+                    case .adGroup:  navPath = [.allAdGroups(platform: vm.platformFilter)]
+                    case .ad:       navPath = [.allAds(platform: vm.platformFilter)]
                     }
                 }
 
@@ -50,12 +50,12 @@ struct AdsManageView: View {
                     AdsAdGroupView(advertiser: adv, campaign: camp, navPath: $navPath)
                 case .ads(let adv, let adgroup):
                     AdsAdView(advertiser: adv, adgroup: adgroup)
-                case .allCampaigns:
-                    AdsAllCampaignsView(navPath: $navPath)
-                case .allAdGroups:
-                    AdsAllAdGroupsView(navPath: $navPath)
-                case .allAds:
-                    AdsAllAdsView(navPath: $navPath)
+                case .allCampaigns(let platform):
+                    AdsAllCampaignsView(navPath: $navPath, initialPlatform: platform)
+                case .allAdGroups(let platform):
+                    AdsAllAdGroupsView(navPath: $navPath, initialPlatform: platform)
+                case .allAds(let platform):
+                    AdsAllAdsView(navPath: $navPath, initialPlatform: platform)
                 case .adGroupsForAccount(let adv):
                     AdsAdGroupsForAccountView(advertiser: adv, navPath: $navPath)
                 case .adsForAccount(let adv):
@@ -924,11 +924,15 @@ final class AllCampaignsViewModel: ObservableObject {
     @Published var isLoadingMore = false
     @Published var hasMore       = false
     @Published var error: String? = nil
-    @Published var platformFilter: Platform? = nil { didSet { Task { await refresh() } } }
+    @Published var platformFilter: Platform? { didSet { Task { await refresh() } } }
 
     private let service  = AdDetailService.shared
     private var page     = 1
     private let pageSize = 20
+
+    init(initialPlatform: Platform? = nil) {
+        _platformFilter = Published(wrappedValue: initialPlatform)
+    }
 
     func load() async {
         guard !isLoading else { return }
@@ -970,11 +974,15 @@ final class AllAdGroupsViewModel: ObservableObject {
     @Published var isLoadingMore = false
     @Published var hasMore       = false
     @Published var error: String? = nil
-    @Published var platformFilter: Platform? = nil { didSet { Task { await refresh() } } }
+    @Published var platformFilter: Platform? { didSet { Task { await refresh() } } }
 
     private let service  = AdDetailService.shared
     private var page     = 1
     private let pageSize = 20
+
+    init(initialPlatform: Platform? = nil) {
+        _platformFilter = Published(wrappedValue: initialPlatform)
+    }
 
     func load() async {
         guard !isLoading else { return }
@@ -1016,13 +1024,17 @@ final class AllAdsViewModel: ObservableObject {
     @Published var isLoadingMore = false
     @Published var hasMore       = false
     @Published var error: String? = nil
-    @Published var platformFilter: Platform? = nil { didSet { Task { await refresh() } } }
+    @Published var platformFilter: Platform? { didSet { Task { await refresh() } } }
     @Published var searchText    = "" { didSet { scheduleSearch() } }
 
     private let service    = AdDetailService.shared
     private var page       = 1
     private let pageSize   = 20
     private var searchTask: Task<Void, Never>? = nil
+
+    init(initialPlatform: Platform? = nil) {
+        _platformFilter = Published(wrappedValue: initialPlatform)
+    }
 
     func load() async {
         guard !isLoading else { return }
@@ -1068,7 +1080,13 @@ final class AllAdsViewModel: ObservableObject {
 
 struct AdsAllCampaignsView: View {
     @Binding var navPath: [AdsNav]
-    @StateObject private var vm = AllCampaignsViewModel()
+    @StateObject private var vm: AllCampaignsViewModel
+    @State private var summaryDateFilter: DateRangeFilter = .last7Days
+
+    init(navPath: Binding<[AdsNav]>, initialPlatform: Platform? = nil) {
+        _navPath = navPath
+        _vm = StateObject(wrappedValue: AllCampaignsViewModel(initialPlatform: initialPlatform))
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1076,8 +1094,8 @@ struct AdsAllCampaignsView: View {
                 switch dim {
                 case .account:  navPath.removeAll()
                 case .campaign: break
-                case .adGroup:  navPath = [.allAdGroups]
-                case .ad:       navPath = [.allAds]
+                case .adGroup:  navPath = [.allAdGroups(platform: vm.platformFilter)]
+                case .ad:       navPath = [.allAds(platform: vm.platformFilter)]
                 }
             }
 
@@ -1089,6 +1107,15 @@ struct AdsAllCampaignsView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: AppTheme.Spacing.md) {
+                            AdsSummaryCardView(
+                                scopeLabel: "全部推广系列",
+                                spend:       vm.items.reduce(0) { $0 + $1.spend },
+                                clicks:      vm.items.reduce(0) { $0 + $1.clicks },
+                                impressions: vm.items.reduce(0) { $0 + $1.impressions },
+                                conversions: vm.items.reduce(0) { $0 + $1.conversions },
+                                dateFilter:  $summaryDateFilter,
+                                isLoadingSummary: vm.isLoading
+                            )
                             ForEach(vm.items) { item in
                                 Button {
                                     let adv = AdvertiserListItem(
@@ -1126,16 +1153,22 @@ struct AdsAllCampaignsView: View {
 
 struct AdsAllAdGroupsView: View {
     @Binding var navPath: [AdsNav]
-    @StateObject private var vm = AllAdGroupsViewModel()
+    @StateObject private var vm: AllAdGroupsViewModel
+    @State private var summaryDateFilter: DateRangeFilter = .last7Days
+
+    init(navPath: Binding<[AdsNav]>, initialPlatform: Platform? = nil) {
+        _navPath = navPath
+        _vm = StateObject(wrappedValue: AllAdGroupsViewModel(initialPlatform: initialPlatform))
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             DimensionTabRow(activeDimension: .adGroup) { dim in
                 switch dim {
                 case .account:  navPath.removeAll()
-                case .campaign: navPath = [.allCampaigns]
+                case .campaign: navPath = [.allCampaigns(platform: vm.platformFilter)]
                 case .adGroup:  break
-                case .ad:       navPath = [.allAds]
+                case .ad:       navPath = [.allAds(platform: vm.platformFilter)]
                 }
             }
 
@@ -1147,6 +1180,15 @@ struct AdsAllAdGroupsView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: AppTheme.Spacing.md) {
+                            AdsSummaryCardView(
+                                scopeLabel: "全部广告组",
+                                spend:       vm.items.reduce(0) { $0 + $1.spend },
+                                clicks:      vm.items.reduce(0) { $0 + $1.clicks },
+                                impressions: vm.items.reduce(0) { $0 + $1.impressions },
+                                conversions: vm.items.reduce(0) { $0 + $1.conversions },
+                                dateFilter:  $summaryDateFilter,
+                                isLoadingSummary: vm.isLoading
+                            )
                             ForEach(vm.items) { item in
                                 Button {
                                     let adv = AdvertiserListItem(
@@ -1184,15 +1226,20 @@ struct AdsAllAdGroupsView: View {
 
 struct AdsAllAdsView: View {
     @Binding var navPath: [AdsNav]
-    @StateObject private var vm = AllAdsViewModel()
+    @StateObject private var vm: AllAdsViewModel
+
+    init(navPath: Binding<[AdsNav]>, initialPlatform: Platform? = nil) {
+        _navPath = navPath
+        _vm = StateObject(wrappedValue: AllAdsViewModel(initialPlatform: initialPlatform))
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             DimensionTabRow(activeDimension: .ad) { dim in
                 switch dim {
                 case .account:  navPath.removeAll()
-                case .campaign: navPath = [.allCampaigns]
-                case .adGroup:  navPath = [.allAdGroups]
+                case .campaign: navPath = [.allCampaigns(platform: vm.platformFilter)]
+                case .adGroup:  navPath = [.allAdGroups(platform: vm.platformFilter)]
                 case .ad:       break
                 }
             }

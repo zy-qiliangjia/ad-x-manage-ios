@@ -93,3 +93,8 @@ openspec
 
 帮我测试下ios首页 相关功能，使用 zhouyang@qiliangjia.com 密码：aa123456
 这个账号授权过正式的 token, 可以调用tiktok接口，如果有错误，帮我检查并修复
+
+# 广告tab 切换失败 需要完善
+- error:  GET http://localhost:8080/api/v1/campaigns?page=1&page_size=20
+⬅️ 404 http://localhost:8080/api/v1/campaigns?page=1&page_size=20
+   Body: 404 page not found

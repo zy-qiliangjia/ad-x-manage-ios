@@ -679,3 +679,5 @@ https://business-api.tiktok.com/open_api/v1.3/report/integrated/get?page=1&data_
 
 
 # ios端 下方tab 切换到广告，不通过点击账号列表进入后，直接点击日期下方的广告组相关布局需要和从账号点进去的保持一致
+
+# ios端 下方tab 切换到广告，不通过点击账号列表进入后，直接点击日期下方的广告组相关布局需要和从账号点进去的保持一致

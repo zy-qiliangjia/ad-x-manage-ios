@@ -960,11 +960,6 @@ struct AdGroupManageCard: View {
                     ProgressView().scaleEffect(0.8)
                 } else {
                     StatusBadge(status: item.status)
-                    Toggle("", isOn: .constant(item.status.isAdActive))
-                        .toggleStyle(SwitchToggleStyle(tint: AppTheme.Colors.success))
-                        .labelsHidden()
-                        .scaleEffect(0.85)
-                        .onTapGesture { onToggle() }
                 }
             }
             .padding(.horizontal, AppTheme.Spacing.lg)
@@ -1014,10 +1009,9 @@ struct AdGroupManageCard: View {
         .contentShape(Rectangle())
     }
 
-    // 6格指标网格：消耗、点击、展示 / 转化、CPA、预算
+    // 5格指标 + 操作按钮：消耗、点击、展示 / 转化、CPA、暂停开启
     private var adGroupMetricsGrid: some View {
-        let budgetVal = item.budgetMode == "BUDGET_MODE_INFINITE" ? "不限" : item.budget.statFormatted
-        let cpaVal    = metrics.map { $0.cpa > 0 ? $0.cpa.statFormatted : "-" } ?? "-"
+        let cpaVal = metrics.map { $0.cpa > 0 ? $0.cpa.statFormatted : "-" } ?? "-"
         return LazyVGrid(
             columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
             spacing: AppTheme.Spacing.sm
@@ -1027,10 +1021,24 @@ struct AdGroupManageCard: View {
             metricCell(label: "展示",    value: metrics.map { "\($0.impressions)" }         ?? "-")
             metricCell(label: "转化",    value: metrics.map { "\($0.conversion)" }          ?? "-")
             metricCell(label: "CPA",     value: cpaVal)
-            metricCell(label: item.budgetMode.budgetModeLabel, value: budgetVal)
+            toggleButton
         }
         .padding(.horizontal, AppTheme.Spacing.lg)
         .padding(.vertical, AppTheme.Spacing.sm)
+    }
+
+    private var toggleButton: some View {
+        Button(action: onToggle) {
+            VStack(alignment: .leading, spacing: 2) {
+                Image(systemName: item.status.isAdActive ? "pause.circle.fill" : "play.circle.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(item.status.isAdActive ? Color.orange : AppTheme.Colors.success)
+                Text(item.status.isAdActive ? "暂停" : "开启")
+                    .font(.system(size: 10))
+                    .foregroundStyle(item.status.isAdActive ? Color.orange : AppTheme.Colors.success)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     // 加载骨架
@@ -1039,7 +1047,7 @@ struct AdGroupManageCard: View {
             columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
             spacing: AppTheme.Spacing.sm
         ) {
-            ForEach(0..<6, id: \.self) { _ in
+            ForEach(0..<5, id: \.self) { _ in
                 VStack(alignment: .leading, spacing: 2) {
                     RoundedRectangle(cornerRadius: 3)
                         .fill(AppTheme.Colors.textSecondary.opacity(0.15))
@@ -1049,6 +1057,7 @@ struct AdGroupManageCard: View {
                         .frame(width: 28, height: 10)
                 }
             }
+            toggleButton
         }
         .padding(.horizontal, AppTheme.Spacing.lg)
         .padding(.vertical, AppTheme.Spacing.sm)

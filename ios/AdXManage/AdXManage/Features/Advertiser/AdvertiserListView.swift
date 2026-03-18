@@ -105,15 +105,12 @@ struct AdvertiserListView: View {
                         .padding(.top, 60)
                 } else {
                     ForEach(vm.items) { adv in
-                        NavigationLink(destination: AdvertiserDetailView(advertiser: adv)) {
-                            AdvertiserCardView(
-                                advertiser: adv,
-                                isSyncing: vm.syncingID == adv.id,
-                                metrics: vm.reportMetrics[adv.advertiserID],
-                                isLoadingMetrics: vm.isLoadingMetrics
-                            )
-                        }
-                        .buttonStyle(.plain)
+                        AdvertiserCardView(
+                            advertiser: adv,
+                            isSyncing: vm.syncingID == adv.id,
+                            metrics: vm.reportMetrics[adv.advertiserID],
+                            isLoadingMetrics: vm.isLoadingMetrics
+                        )
                         .contextMenu {
                             Button {
                                 balanceTarget = adv

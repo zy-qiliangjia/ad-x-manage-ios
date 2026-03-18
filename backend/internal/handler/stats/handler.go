@@ -31,11 +31,11 @@ func (h *Handler) Overview(c *gin.Context) {
 	startDate := c.Query("start_date")
 	endDate := c.Query("end_date")
 
-	// 默认近7天
+	// 默认近30天
 	if startDate == "" || endDate == "" {
 		now := time.Now()
 		endDate = now.Format("2006-01-02")
-		startDate = now.AddDate(0, 0, -6).Format("2006-01-02")
+		startDate = now.AddDate(0, 0, -29).Format("2006-01-02")
 	}
 
 	result, err := h.svc.Overview(c.Request.Context(), userID, platform, startDate, endDate)

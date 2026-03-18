@@ -176,7 +176,7 @@ https://business-api.tiktok.com/open_api/v1.3/report/integrated/get?page=1&data_
 
 
 
-# ios账号标签页调整
+# ios下方广告标签页调整
 - 每个账号加入指标， 消耗，点击，展示，转化，cpa,日预算
 - 支持自定义日期筛选，日期跨度最多30天
 - 通过接口拉取-并缓存，接口有频率限制，每次请求支持广告主最多5个，需要拆分
@@ -240,4 +240,68 @@ https://business-api.tiktok.com/open_api/v1.3/report/integrated/get?page=1&data_
 }
 ```
 
-# ios 首页汇总数据调整-通过接口拉取，当前使用的还是旧的
+# ios 首页汇总数据调整-通过接口拉取
+
+
+# ios 底部 账号 tab 切换的账号列表-不需要点击跳转能力，只需要展示列表即可
+
+
+# ios端&后端首页数据汇总(4个指标)-调整
+- ios首页当前4个指标 改为 总消耗，总点击，总展示，总转化
+- 后端通过接口拉取，指定维度&指标，获取当前对应平台的所有 advertiser_id，需要拆分，每次最多支持5个 5个广告主，日期范围跨度不允许超过30天
+- 读取数据指标接口有频率限制 每秒10次
+- 默认日期给最近30天
+- 拉取到的结果缓存15分钟
+- 指标对应（取total_metrics）：
+    spend： 总消耗
+    conversion： 转化
+    clicks：点击
+    impressions： 展示
+
+tikto请求示例：
+```
+https://business-api.tiktok.com/open_api/v1.3/report/integrated/get?page=1&data_level=AUCTION_ADVERTISER&report_type=BASIC&dimensions=[%22advertiser_id%22]&metrics=[%22clicks%22,%22spend%22,%22conversion%22,%22cost_per_conversion%22,%22impressions%22]&page_size=1000&start_date=2026-02-17&end_date=2026-03-17&enable_total_metrics=true&advertiser_ids=[%227582793237962817552%22]
+```
+返回：
+```
+{
+    "code": 0,
+    "message": "OK",
+    "request_id": "202603181050188307158386EE8B8893B7",
+    "data": {
+        "page_info": {
+            "total_number": 1,
+            "page_size": 1,
+            "page": 1,
+            "total_page": 1
+        },
+        "list": [
+            {
+                "dimensions": {
+                    "advertiser_id": "7582793237962817552"
+                },
+                "metrics": {
+                    "currency": "USD",
+                    "impressions": "1017",
+                    "conversion": "0",
+                    "spend": "5.57",
+                    "clicks": "68",
+                    "advertiser_id": "7582793237962817552",
+                    "timezone": "Asia/Singapore",
+                    "cost_per_conversion": "0.00"
+                }
+            }
+        ],
+        "total_metrics": {
+            "currency": "-",
+            "impressions": "1017",
+            "conversion": "0",
+            "spend": "5.57",
+            "clicks": "68",
+            "advertiser_id": "-",
+            "timezone": "-",
+            "cost_per_conversion": "0.00"
+        }
+    }
+}
+```

@@ -64,13 +64,14 @@ func New(db *gorm.DB, log *zap.Logger, clients map[string]platform.Client, token
 }
 
 // Overview 查询当前用户的广告数据概览。
-// 消耗/点击/展示/转化聚合自本地 campaigns 表，系列数/广告组数同样来自本地 DB。
+// 消耗/点击/展示/转化通过平台 Report API 实时拉取（分批≤5，缓存15分钟），
+// 系列数/广告组数来自本地 DB。
 func (s *service) Overview(ctx context.Context, userID uint64, platformFilter, startDate, endDate string) (*OverviewResult, error) {
-	// 默认近7天
+	// 默认近30天
 	if startDate == "" || endDate == "" {
 		now := time.Now()
 		endDate = now.Format("2006-01-02")
-		startDate = now.AddDate(0, 0, -6).Format("2006-01-02")
+		startDate = now.AddDate(0, 0, -29).Format("2006-01-02")
 	}
 
 	result := &OverviewResult{}
@@ -109,23 +110,40 @@ func (s *service) Overview(ctx context.Context, userID uint64, platformFilter, s
 		return nil, err
 	}
 
-	// 3. 从本地 campaigns 表聚合消耗/点击/展示/转化
-	var metrics struct {
-		Spend       float64
-		Clicks      float64
-		Impressions float64
-		Conversions float64
+	// 3. 按平台分组，调用平台 Report API 获取消耗/点击/展示/转化
+	type platformGroup struct {
+		tokenID       uint64
+		advertiserIDs []string
 	}
-	if err := s.db.WithContext(ctx).Table("campaigns").
-		Select("COALESCE(SUM(spend),0) AS spend, COALESCE(SUM(clicks),0) AS clicks, COALESCE(SUM(impressions),0) AS impressions, COALESCE(SUM(conversions),0) AS conversions").
-		Where("advertiser_id IN ?", advIDs).
-		Scan(&metrics).Error; err != nil {
-		return nil, err
+	groups := make(map[string]*platformGroup)
+	for _, adv := range advs {
+		plt := adv.Platform
+		if _, ok := groups[plt]; !ok {
+			groups[plt] = &platformGroup{tokenID: adv.TokenID}
+		}
+		groups[plt].advertiserIDs = append(groups[plt].advertiserIDs, adv.AdvertiserID)
 	}
-	result.TotalSpend = metrics.Spend
-	result.TotalClicks = metrics.Clicks
-	result.TotalImpressions = metrics.Impressions
-	result.TotalConversions = metrics.Conversions
+
+	for plt, group := range groups {
+		client, ok := s.clients[plt]
+		if !ok {
+			continue
+		}
+		tok, err := s.tokenRepo.FindByID(ctx, group.tokenID)
+		if err != nil || tok == nil {
+			s.log.Warn("Overview: token not found", zap.String("platform", plt), zap.Uint64("token_id", group.tokenID))
+			continue
+		}
+		stats, err := client.GetReportStats(tok.AccessToken, group.advertiserIDs, startDate, endDate)
+		if err != nil {
+			s.log.Warn("Overview: GetReportStats failed", zap.String("platform", plt), zap.Error(err))
+			continue
+		}
+		result.TotalSpend += stats.Spend
+		result.TotalClicks += float64(stats.Clicks)
+		result.TotalImpressions += float64(stats.Impressions)
+		result.TotalConversions += float64(stats.Conversion)
+	}
 
 	return result, nil
 }

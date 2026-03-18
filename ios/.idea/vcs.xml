@@ -2,7 +2,5 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/ios" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/ios/AdXManage" vcs="Git" />
   </component>
 </project>

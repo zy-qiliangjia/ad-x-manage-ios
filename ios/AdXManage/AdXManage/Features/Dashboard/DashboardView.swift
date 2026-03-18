@@ -11,7 +11,7 @@ final class DashboardViewModel: ObservableObject {
     @Published var platformFilter: Platform? = nil {
         didSet { Task { await load() } }
     }
-    @Published var dateFilter: DateRangeFilter = .last7Days {
+    @Published var dateFilter: DateRangeFilter = .last30Days {
         didSet { Task { await load() } }
     }
     @Published var lastFetchedAt: Date? = nil

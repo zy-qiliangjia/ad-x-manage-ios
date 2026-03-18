@@ -26,7 +26,7 @@ final class AdvertiserListViewModel: ObservableObject {
     @Published var isLoadingMetrics = false
 
     // ── 日期筛选 ───────────────────────────────────────────
-    @Published var selectedStartDate: Date = Calendar.current.date(byAdding: .day, value: -6, to: Calendar.current.startOfDay(for: Date()))!
+    @Published var selectedStartDate: Date = Calendar.current.date(byAdding: .day, value: -29, to: Calendar.current.startOfDay(for: Date()))!
     @Published var selectedEndDate: Date   = Calendar.current.startOfDay(for: Date())
 
     struct SyncResult: Identifiable {
@@ -97,6 +97,7 @@ final class AdvertiserListViewModel: ObservableObject {
             items  += fetched
             hasMore = pagination.hasMore
             page   += 1
+            await loadMetrics()
         } catch {
             self.error = errorMessage(error)
         }

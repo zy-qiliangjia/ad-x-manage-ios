@@ -12,6 +12,7 @@ struct AdsSummaryCardView: View {
     let conversions: Int
     @Binding var dateFilter: DateRangeFilter
     var isLoadingSummary: Bool = false
+    var showDateTabs: Bool = true
 
     var cpa: String {
         guard conversions > 0 else { return "--" }
@@ -20,8 +21,10 @@ struct AdsSummaryCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-            // 日期筛选 tabs
-            DateRangeTabView(selected: $dateFilter)
+            // 日期筛选 tabs（由外部控制时隐藏）
+            if showDateTabs {
+                DateRangeTabView(selected: $dateFilter)
+            }
 
             // 范围标签
             HStack {

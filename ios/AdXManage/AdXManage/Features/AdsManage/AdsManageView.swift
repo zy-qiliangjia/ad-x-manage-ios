@@ -102,15 +102,22 @@ struct AdsManageView: View {
                 if let target = vm.statusConfirmTarget { Text(target.advertiserName) }
             }
             .safeAreaInset(edge: .top) {
-                Picker("平台", selection: $vm.platformFilter) {
-                    Text("全部").tag(Platform?.none)
-                    ForEach(Platform.allCases) { p in
-                        Text(p.displayName).tag(Platform?.some(p))
+                VStack(spacing: 0) {
+                    Picker("平台", selection: $vm.platformFilter) {
+                        Text("全部").tag(Platform?.none)
+                        ForEach(Platform.allCases) { p in
+                            Text(p.displayName).tag(Platform?.some(p))
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, AppTheme.Spacing.lg)
+                    .padding(.vertical, AppTheme.Spacing.sm)
+                    DateRangePickerView(
+                        startDate: $vm.selectedStartDate,
+                        endDate:   $vm.selectedEndDate
+                    ) { vm.onDateRangeChanged() }
+                    Divider()
                 }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, AppTheme.Spacing.lg)
-                .padding(.vertical, AppTheme.Spacing.sm)
                 .background(.bar)
             }
             .searchable(text: $vm.searchText,
@@ -135,21 +142,24 @@ struct AdsManageView: View {
         } else {
             ScrollView {
                 LazyVStack(spacing: AppTheme.Spacing.md) {
-                    // 汇总卡片
+                    // 汇总卡片（日期由顶部筛选条控制）
                     AdsSummaryCardView(
                         scopeLabel: "全部账号",
-                        spend:       vm.overview?.totalSpend        ?? 0,
-                        clicks:      Int(vm.overview?.totalClicks   ?? 0),
-                        impressions: Int(vm.overview?.totalImpressions ?? 0),
-                        conversions: Int(vm.overview?.totalConversions ?? 0),
-                        dateFilter:  Binding(get: { vm.dateFilter }, set: { vm.dateFilter = $0 }),
-                        isLoadingSummary: vm.summaryLoading
+                        spend:       vm.totalMetrics?.spend       ?? 0,
+                        clicks:      vm.totalMetrics?.clicks      ?? 0,
+                        impressions: vm.totalMetrics?.impressions ?? 0,
+                        conversions: vm.totalMetrics?.conversion  ?? 0,
+                        dateFilter:  .constant(.last30Days),
+                        isLoadingSummary: vm.isLoadingMetrics,
+                        showDateTabs: false
                     )
 
                     ForEach(vm.items) { adv in
                         AdsAccountCardView(
                             advertiser: adv,
                             isUpdating: vm.updatingStatusID == adv.id,
+                            metrics: vm.reportMetrics[adv.advertiserID],
+                            isLoadingMetrics: vm.isLoadingMetrics,
                             onBudget: { vm.budgetTarget = adv },
                             onToggle: { vm.statusConfirmTarget = adv },
                             onDrill: { navPath.append(.campaigns(adv)) }
@@ -161,6 +171,14 @@ struct AdsManageView: View {
                         }
                     }
                     if vm.isLoadingMore { ProgressView().padding() }
+
+                    // 合计行
+                    if !vm.items.isEmpty {
+                        MetricsSummaryRow(
+                            total: vm.totalMetrics,
+                            isLoading: vm.isLoadingMetrics
+                        )
+                    }
                 }
                 .padding(.horizontal, AppTheme.Spacing.xl)
                 .padding(.vertical, AppTheme.Spacing.md)
@@ -186,18 +204,31 @@ final class AdsManageListViewModel: ObservableObject {
     @Published var statusConfirmTarget: AdvertiserListItem? = nil
     @Published var updatingStatusID: UInt64?                = nil
 
-    // 汇总统计（全部账号，使用 stats overview）
-    @Published var dateFilter: DateRangeFilter = .last7Days {
-        didSet { Task { await loadOverview() } }
-    }
-    @Published var overview: StatsOverview? = nil
-    @Published var summaryLoading = false
+    // ── 报表指标（按广告主 ID 缓存，切换日期时清空）──────────────
+    @Published var reportMetrics: [String: AdvertiserReportMetrics] = [:]
+    @Published var totalMetrics: AdvertiserReportMetrics? = nil
+    @Published var isLoadingMetrics = false
+
+    // ── 日期筛选（自定义，最大30天）─────────────────────────────
+    @Published var selectedStartDate: Date = Calendar.current.date(
+        byAdding: .day, value: -29,
+        to: Calendar.current.startOfDay(for: Date())
+    )!
+    @Published var selectedEndDate: Date = Calendar.current.startOfDay(for: Date())
 
     private let service      = AdvertiserService.shared
     private let statsService = StatsService.shared
     private var page     = 1
     private let pageSize = 20
     private var searchTask: Task<Void, Never>? = nil
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f
+    }()
+    var startDateString: String { Self.dateFormatter.string(from: selectedStartDate) }
+    var endDateString: String   { Self.dateFormatter.string(from: selectedEndDate) }
+
+    // MARK: - Load
 
     func load() async {
         guard !isLoading else { return }
@@ -209,25 +240,19 @@ final class AdsManageListViewModel: ObservableObject {
             page    = 2
         } catch { self.error = msg(error) }
         isLoading = false
-        await loadOverview()
+        await loadMetrics()
     }
 
     func refresh() async {
         page = 1; error = nil
+        reportMetrics = [:]; totalMetrics = nil
         do {
             let (fetched, pagination) = try await fetch(page: 1)
             items   = fetched
             hasMore = pagination.hasMore
             page    = 2
         } catch { self.error = msg(error) }
-        await loadOverview()
-    }
-
-    func loadOverview() async {
-        summaryLoading = true
-        let r = dateFilter.dateRange
-        overview = try? await statsService.overview(startDate: r.from, endDate: r.to)
-        summaryLoading = false
+        await loadMetrics()
     }
 
     func loadMore() async {
@@ -240,15 +265,63 @@ final class AdsManageListViewModel: ObservableObject {
             page   += 1
         } catch { self.error = msg(error) }
         isLoadingMore = false
+        await loadMetrics()
     }
+
+    // MARK: - Metrics (batched, cached)
+
+    /// 拉取报表指标。已缓存的 ID 不重复请求；每平台每批最多 5 个广告主。
+    func loadMetrics() async {
+        guard !items.isEmpty else { return }
+        isLoadingMetrics = true
+
+        let uncached = items.filter { reportMetrics[$0.advertiserID] == nil }
+        if !uncached.isEmpty {
+            var byPlatform: [String: [String]] = [:]
+            for item in uncached {
+                byPlatform[item.platform, default: []].append(item.advertiserID)
+            }
+
+            await withTaskGroup(of: [(String, AdvertiserReportMetrics)].self) { group in
+                for (plt, ids) in byPlatform {
+                    for batch in ids.chunked(by: 5) {
+                        group.addTask { [weak self] in
+                            guard let self else { return [] }
+                            do {
+                                let resp = try await self.statsService.advertiserReport(
+                                    platform: plt,
+                                    advertiserIDs: batch,
+                                    startDate: self.startDateString,
+                                    endDate:   self.endDateString
+                                )
+                                return resp.list.map { ($0.advertiserID, $0) }
+                            } catch { return [] }
+                        }
+                    }
+                }
+                for await results in group {
+                    for (id, metric) in results { reportMetrics[id] = metric }
+                }
+            }
+        }
+
+        totalMetrics     = computeTotal()
+        isLoadingMetrics = false
+    }
+
+    /// 日期变更：清空缓存后重新拉取
+    func onDateRangeChanged() {
+        reportMetrics = [:]; totalMetrics = nil
+        Task { await loadMetrics() }
+    }
+
+    // MARK: - Write
 
     func updateBudget(item: AdvertiserListItem, budget: Double) async {
         do {
             try await service.updateBudget(id: item.id, budget: budget)
             await refresh()
-        } catch {
-            self.error = msg(error)
-        }
+        } catch { self.error = msg(error) }
     }
 
     func updateStatus(item: AdvertiserListItem, action: String) async {
@@ -264,9 +337,37 @@ final class AdsManageListViewModel: ObservableObject {
         updatingStatusID = nil
     }
 
+    // MARK: - Private
+
     private func fetch(page: Int) async throws -> ([AdvertiserListItem], APIPagination) {
         try await service.list(platform: platformFilter?.rawValue, keyword: searchText,
                                page: page, pageSize: pageSize)
+    }
+
+    private func computeTotal() -> AdvertiserReportMetrics? {
+        let all = items.compactMap { reportMetrics[$0.advertiserID] }
+        guard !all.isEmpty else { return nil }
+        return all.dropFirst().reduce(all[0]) { mergeMetrics($0, $1) }
+    }
+
+    private func mergeMetrics(_ a: AdvertiserReportMetrics,
+                               _ b: AdvertiserReportMetrics) -> AdvertiserReportMetrics {
+        let dict: [String: Any] = [
+            "advertiser_id": "-",
+            "spend": a.spend + b.spend,
+            "clicks": a.clicks + b.clicks,
+            "impressions": a.impressions + b.impressions,
+            "conversion": a.conversion + b.conversion,
+            "cost_per_conversion": 0.0,
+            "cpa": 0.0,
+            "currency": "",
+            "daily_budget": a.dailyBudget + b.dailyBudget
+        ]
+        if let data = try? JSONSerialization.data(withJSONObject: dict),
+           let result = try? JSONDecoder().decode(AdvertiserReportMetrics.self, from: data) {
+            return result
+        }
+        return a
     }
 
     private func scheduleSearch() {
@@ -284,11 +385,23 @@ final class AdsManageListViewModel: ObservableObject {
     }
 }
 
+// MARK: - Array chunked helper
+
+private extension Array {
+    func chunked(by size: Int) -> [[Element]] {
+        stride(from: 0, to: count, by: size).map {
+            Array(self[$0 ..< Swift.min($0 + size, count)])
+        }
+    }
+}
+
 // MARK: - AdsAccountCardView (账号层级卡片)
 
 private struct AdsAccountCardView: View {
     let advertiser: AdvertiserListItem
     let isUpdating: Bool
+    let metrics: AdvertiserReportMetrics?
+    let isLoadingMetrics: Bool
     let onBudget: () -> Void
     let onToggle: () -> Void
     let onDrill: () -> Void
@@ -336,18 +449,22 @@ private struct AdsAccountCardView: View {
             .padding(.horizontal, AppTheme.Spacing.lg)
             .padding(.top, AppTheme.Spacing.md)
 
-            // 中部：消耗 + 预算指标行
-            HStack {
-                metricCell(label: "消耗", value: advertiser.spend.statFormatted)
-                metricCell(
-                    label: advertiser.budgetMode.budgetModeLabel,
-                    value: advertiser.budgetMode == "BUDGET_MODE_INFINITE" || advertiser.budget <= 0
-                        ? "不限" : "¥\(Int(advertiser.budget))"
+            // 指标网格（消耗/点击/展示/转化/CPA/日预算）
+            Divider()
+                .padding(.horizontal, AppTheme.Spacing.lg)
+
+            if isLoadingMetrics && metrics == nil {
+                MetricsSkeletonGrid()
+                    .padding(.vertical, AppTheme.Spacing.sm)
+                    .padding(.horizontal, AppTheme.Spacing.lg)
+            } else {
+                AdvertiserMetricsGrid(
+                    metrics: metrics,
+                    currency: advertiser.currency
                 )
-                Spacer()
+                .padding(.vertical, AppTheme.Spacing.sm)
+                .padding(.horizontal, AppTheme.Spacing.lg)
             }
-            .padding(.horizontal, AppTheme.Spacing.lg)
-            .padding(.vertical, AppTheme.Spacing.sm)
 
             Divider().padding(.horizontal, AppTheme.Spacing.lg)
 
@@ -391,17 +508,6 @@ private struct AdsAccountCardView: View {
         .contentShape(Rectangle())
     }
 
-    private func metricCell(label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(value)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(AppTheme.Colors.textPrimary)
-            Text(label)
-                .font(.system(size: 10))
-                .foregroundStyle(AppTheme.Colors.textSecondary)
-        }
-        .padding(.trailing, AppTheme.Spacing.lg)
-    }
 }
 
 // MARK: - AdsCampaignView

@@ -306,17 +306,16 @@ struct AdvertiserMetricsGrid: View {
     private var cur: String { metrics?.currency.isEmpty == false ? (metrics?.currency ?? currency) : currency }
 
     var body: some View {
-        let m = metrics
         VStack(spacing: 6) {
             HStack(spacing: 0) {
-                metricCell(label: "消耗", value: m.map { formatMoney($0.spend, currency: cur) } ?? "—")
-                metricCell(label: "点击", value: m.map { formatCount($0.clicks) } ?? "—")
-                metricCell(label: "展示", value: m.map { formatCount($0.impressions) } ?? "—")
+                metricCell(label: "消耗", value: formatMoney(metrics?.spend ?? 0, currency: cur))
+                metricCell(label: "点击", value: formatCount(metrics?.clicks ?? 0))
+                metricCell(label: "展示", value: formatCount(metrics?.impressions ?? 0))
             }
             HStack(spacing: 0) {
-                metricCell(label: "转化", value: m.map { formatCount($0.conversion) } ?? "—")
-                metricCell(label: "CPA", value: m.map { formatMoney($0.cpa, currency: "") } ?? "—")
-                metricCell(label: "日预算", value: m.map { formatMoney($0.dailyBudget, currency: cur) } ?? "—")
+                metricCell(label: "转化", value: formatCount(metrics?.conversion ?? 0))
+                metricCell(label: "CPA", value: formatMoney(metrics?.cpa ?? 0, currency: ""))
+                metricCell(label: "日预算", value: formatMoney(metrics?.dailyBudget ?? 0, currency: cur))
             }
         }
     }

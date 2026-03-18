@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"ad-x-manage/backend/internal/service/platform"
 )
 
@@ -27,15 +29,17 @@ type Client struct {
 	redirectURI string
 	sandbox     bool
 	httpClient  *http.Client
+	rdb         *redis.Client
 }
 
-func New(appID, appSecret, redirectURI string, sandbox bool) *Client {
+func New(appID, appSecret, redirectURI string, sandbox bool, rdb *redis.Client) *Client {
 	return &Client{
 		appID:       appID,
 		appSecret:   appSecret,
 		redirectURI: redirectURI,
 		sandbox:     sandbox,
 		httpClient:  &http.Client{Timeout: 15 * time.Second},
+		rdb:         rdb,
 	}
 }
 

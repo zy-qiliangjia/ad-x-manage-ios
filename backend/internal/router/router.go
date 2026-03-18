@@ -47,7 +47,7 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 
 	// ── 平台客户端 ────────────────────────────────────────
 	platformClients := map[string]platform.Client{
-		"tiktok": tiktok.New(cfg.TikTok.AppID, cfg.TikTok.AppSecret, cfg.TikTok.RedirectURI, cfg.TikTok.Sandbox),
+		"tiktok": tiktok.New(cfg.TikTok.AppID, cfg.TikTok.AppSecret, cfg.TikTok.RedirectURI, cfg.TikTok.Sandbox, rdb),
 		"kwai":   kwai.New(cfg.Kwai.AppKey, cfg.Kwai.AppSecret, cfg.Kwai.RedirectURI),
 	}
 

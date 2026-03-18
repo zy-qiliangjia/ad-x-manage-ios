@@ -38,6 +38,10 @@ type Client interface {
 	// ── 广告 ───────────────────────────────────────────────
 	GetAds(accessToken, advertiserID, adGroupID string, page, pageSize int) ([]*AdInfo, int64, error)
 
+	// ── 报表统计 ───────────────────────────────────────────
+	// GetReportStats 拉取指定广告主列表在给定日期范围内的汇总指标。
+	// advertiserIDs 为空时直接返回零值。分批调用由实现层负责。
+	GetReportStats(accessToken string, advertiserIDs []string, startDate, endDate string) (*ReportStats, error)
 }
 
 // ── 共享数据结构 ───────────────────────────────────────────────
@@ -92,5 +96,13 @@ type AdInfo struct {
 	AdGroupID    string
 	Status       string
 	CreativeType string
+}
+
+// ReportStats 平台报表汇总指标（所有广告主合计）。
+type ReportStats struct {
+	Spend       float64
+	Clicks      int64
+	Impressions int64
+	Conversion  int64
 }
 

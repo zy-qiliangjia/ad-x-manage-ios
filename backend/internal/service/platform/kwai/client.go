@@ -437,6 +437,11 @@ func (c *Client) post(path string, body any, accessToken string, out any) error 
 	return c.do(req, out)
 }
 
+// GetReportStats 快手报表统计接口（待实现，当前返回零值占位）。
+func (c *Client) GetReportStats(_ string, _ []string, _, _ string) (*platform.ReportStats, error) {
+	return &platform.ReportStats{}, nil
+}
+
 func (c *Client) do(req *http.Request, out any) error {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

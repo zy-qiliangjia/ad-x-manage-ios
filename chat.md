@@ -107,3 +107,135 @@ openspec
 1. 能否改用 广告主，批量一次获取
 2. 授权token 不用加密处理 
 3. 日志输出所有sql&请求明细
+
+
+# 授权后-第三方授权平台 refresh_token 保存为空a
+---
+20260318
+
+# 首页数据汇总(4个指标)-调整
+- 通过接口拉取，指定维度&指标，获取当前对应平台的所有 advertiser_id
+- 结果缓存15分钟
+- 指标对应（取total_metrics）：
+    spend： 总消耗
+    conversion： 转化
+    clicks：点击
+    impressions： 展示
+
+tikto请求示例：
+```
+https://business-api.tiktok.com/open_api/v1.3/report/integrated/get?page=1&data_level=AUCTION_ADVERTISER&report_type=BASIC&dimensions=[%22advertiser_id%22]&metrics=[%22clicks%22,%22spend%22,%22conversion%22,%22cost_per_conversion%22,%22impressions%22]&page_size=1000&start_date=2026-02-17&end_date=2026-03-17&enable_total_metrics=true&advertiser_ids=[%227582793237962817552%22]
+```
+返回：
+```
+{
+    "code": 0,
+    "message": "OK",
+    "request_id": "202603181050188307158386EE8B8893B7",
+    "data": {
+        "page_info": {
+            "total_number": 1,
+            "page_size": 1,
+            "page": 1,
+            "total_page": 1
+        },
+        "list": [
+            {
+                "dimensions": {
+                    "advertiser_id": "7582793237962817552"
+                },
+                "metrics": {
+                    "currency": "USD",
+                    "impressions": "1017",
+                    "conversion": "0",
+                    "spend": "5.57",
+                    "clicks": "68",
+                    "advertiser_id": "7582793237962817552",
+                    "timezone": "Asia/Singapore",
+                    "cost_per_conversion": "0.00"
+                }
+            }
+        ],
+        "total_metrics": {
+            "currency": "-",
+            "impressions": "1017",
+            "conversion": "0",
+            "spend": "5.57",
+            "clicks": "68",
+            "advertiser_id": "-",
+            "timezone": "-",
+            "cost_per_conversion": "0.00"
+        }
+    }
+}
+```
+
+
+提按调整- 拉取数据有接口限制频率问题，1s 10次
+单次最多只支持5个广告主，需要将广告主拆分进行拉取, 将拉取到的进行保存
+
+
+
+# ios账号标签页调整
+- 每个账号加入指标， 消耗，点击，展示，转化，cpa,日预算
+- 支持自定义日期筛选，日期跨度最多30天
+- 通过接口拉取-并缓存，接口有频率限制，每次请求支持广告主最多5个，需要拆分
+- 数据未拉取到的显示0
+- 接口请求示例(tiktok平台),读取list advertiser_id 进行匹配
+    "conversion": "转化",
+    "cost_per_conversion": "0.00",
+    "spend": "消耗",
+    "currency": "USD",
+    "clicks": "点击",
+    "impressions": "展示",
+    "skan_click_time_cost_per_conversion": "cpa",
+    "advertiser_id": "7582793237962817552",
+- 支持汇总
+```
+https://business-api.tiktok.com/open_api/v1.3/report/integrated/get?page=1&data_level=AUCTION_ADVERTISER&report_type=BASIC&dimensions=[%22advertiser_id%22]&metrics=[%22clicks%22,%22spend%22,%22conversion%22,%22cost_per_conversion%22,%22impressions%22,%22skan_click_time_cost_per_conversion%22]&page_size=1000&start_date=2026-02-17&end_date=2026-03-17&enable_total_metrics=true&advertiser_ids=[%227582793237962817552%22,%227363465639475871761%22,%227363465671117750289%22]
+```
+- 返回示例
+```
+{
+    "code": 0,
+    "message": "OK",
+    "request_id": "202603181152129F75FEDB727D90477891",
+    "data": {
+        "list": [
+            {
+                "dimensions": {
+                    "advertiser_id": "7582793237962817552"
+                },
+                "metrics": {
+                    "conversion": "0",
+                    "cost_per_conversion": "0.00",
+                    "spend": "5.57",
+                    "currency": "USD",
+                    "clicks": "68",
+                    "impressions": "1017",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "advertiser_id": "7582793237962817552",
+                    "timezone": "Asia/Singapore"
+                }
+            }
+        ],
+        "page_info": {
+            "page": 1,
+            "page_size": 1,
+            "total_number": 1,
+            "total_page": 1
+        },
+        "total_metrics": {
+            "conversion": "0",
+            "cost_per_conversion": "0.00",
+            "spend": "5.57",
+            "currency": "-",
+            "clicks": "68",
+            "impressions": "1017",
+            "skan_click_time_cost_per_conversion": "0.00",
+            "advertiser_id": "-",
+            "timezone": "-"
+        }
+    }
+}
+```

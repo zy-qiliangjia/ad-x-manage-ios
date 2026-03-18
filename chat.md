@@ -306,3 +306,14 @@ https://business-api.tiktok.com/open_api/v1.3/report/integrated/get?page=1&data_
     }
 }
 ```
+
+# ios 端需要支持调整预算
+背景： 当前点击下方广告(tab),在对应的账号下面操作预算，提交报错
+- 需要前后端都支持
+- 修改的预算保存到本地 
+- 文档参考 https://business-api.tiktok.com/portal/docs?id=1739939050770434
+
+# ios端 点击下方tab 切换到 广告组系列，需要添加数据
+- 每个广告组显示消耗，点击，展示，转化，cpa
+- 包含暂停投放操作
+- 

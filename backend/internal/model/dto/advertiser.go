@@ -20,6 +20,14 @@ type AdvertiserListItem struct {
 	Timezone       string     `json:"timezone"`
 	Status         uint8      `json:"status"`
 	SyncedAt       *time.Time `json:"synced_at"`
+	Budget         float64    `json:"budget"`      // 账户日预算（0 表示不限）
+	BudgetMode     string     `json:"budget_mode"` // "BUDGET_MODE_DAY" | "BUDGET_MODE_INFINITE"
+}
+
+// ── 修改广告主日预算 ─────────────────────────────────────────────
+
+type UpdateAdvertiserBudgetRequest struct {
+	Budget float64 `json:"budget" binding:"required,gt=0"`
 }
 
 // ── 余额 ───────────────────────────────────────────────────────

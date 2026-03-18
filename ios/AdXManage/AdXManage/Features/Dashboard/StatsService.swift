@@ -44,6 +44,17 @@ final class StatsService {
         return try await client.request(.statsReport, queryParams: params)
     }
 
+    /// 批量拉取广告组报表指标（消耗/点击/展示/转化/CPA）
+    func adGroupReport(advertiserDBID: UInt64, adGroupIDs: [String], startDate: String, endDate: String) async throws -> AdGroupReportResponse {
+        let params: [String: String] = [
+            "advertiser_id": "\(advertiserDBID)",
+            "adgroup_ids":   adGroupIDs.joined(separator: ","),
+            "start_date":    startDate,
+            "end_date":      endDate
+        ]
+        return try await client.request(.statsAdGroupReport, queryParams: params)
+    }
+
     /// 按层级聚合指标：scope = "advertiser" | "campaign" | "adgroup"
     func summary(scope: String, scopeID: UInt64, dateFrom: String? = nil, dateTo: String? = nil) async throws -> StatsSummary {
         var params: [String: String] = [

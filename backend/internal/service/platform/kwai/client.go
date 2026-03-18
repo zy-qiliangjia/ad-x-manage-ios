@@ -198,6 +198,26 @@ func (c *Client) GetBalance(accessToken, advertiserID string) (*platform.Balance
 	}, nil
 }
 
+// UpdateAdvertiserBudget 修改广告主账户日预算。
+func (c *Client) UpdateAdvertiserBudget(accessToken, advertiserID string, budget float64) error {
+	body := map[string]any{
+		"access_token":  accessToken,
+		"advertiser_id": advertiserID,
+		"day_budget":    budget,
+	}
+	var resp struct {
+		Result   int    `json:"result"`
+		ErrorMsg string `json:"error_msg"`
+	}
+	if err := c.post("/rest/openapi/advertiser/update", body, accessToken, &resp); err != nil {
+		return err
+	}
+	if resp.Result != 1 {
+		return fmt.Errorf("kwai update advertiser budget error: %s", resp.ErrorMsg)
+	}
+	return nil
+}
+
 // ── 推广系列 ───────────────────────────────────────────────────
 
 func (c *Client) GetCampaigns(accessToken, advertiserID string, page, pageSize int) ([]*platform.CampaignInfo, int64, error) {
@@ -462,6 +482,15 @@ func (c *Client) GetAdvertiserReport(_ string, advertiserIDs []string, _, _ stri
 // GetAdvertiserDailyBudget 快手广告主日预算（待实现，返回空 map）。
 func (c *Client) GetAdvertiserDailyBudget(_ string, _ []string) (map[string]float64, error) {
 	return map[string]float64{}, nil
+}
+
+// GetAdGroupReport 快手广告组报表（待实现，返回零值占位）。
+func (c *Client) GetAdGroupReport(_ string, _ string, adGroupIDs []string, _, _ string) ([]*platform.AdGroupReportItem, error) {
+	items := make([]*platform.AdGroupReportItem, 0, len(adGroupIDs))
+	for _, id := range adGroupIDs {
+		items = append(items, &platform.AdGroupReportItem{AdGroupID: id})
+	}
+	return items, nil
 }
 
 func (c *Client) do(req *http.Request, out any) error {

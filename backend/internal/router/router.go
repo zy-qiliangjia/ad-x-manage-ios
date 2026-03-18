@@ -71,7 +71,7 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 	oauthService := oauthsvc.New(platformClients, tokenRepo, advRepo, syncService, rdb, log)
 
 	// B5: 广告主账号
-	advertiserService := advertisersvc.New(advRepo, tokenRepo, platformClients, syncService, log)
+	advertiserService := advertisersvc.New(advRepo, tokenRepo, logRepo, platformClients, syncService, log)
 
 	// B6: 推广系列
 	campaignService := campaignsvc.New(campRepo, advRepo, tokenRepo, logRepo, platformClients, log)
@@ -139,6 +139,7 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 			advGroup.GET("", advertiserHandler.List)
 			advGroup.POST("/sync", advertiserHandler.SyncAll) // 登录后触发所有广告主后台同步
 			advGroup.GET("/:id/balance", advertiserHandler.Balance)
+			advGroup.PATCH("/:id/budget", advertiserHandler.UpdateBudget)
 			advGroup.POST("/:id/sync", advertiserHandler.Sync)
 
 			// B6: 推广系列（挂在 /advertisers/:id 下的列表接口）
@@ -171,6 +172,7 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 		protected.GET("/stats", statsHandler.Overview)
 		protected.GET("/stats/summary", statsHandler.Summary)
 		protected.GET("/stats/report", statsHandler.GetReport)
+		protected.GET("/stats/adgroup-report", statsHandler.GetAdGroupReport)
 	}
 
 	return r

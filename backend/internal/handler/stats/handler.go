@@ -113,6 +113,50 @@ func (h *Handler) GetReport(c *gin.Context) {
 	response.OK(c, result)
 }
 
+// GetAdGroupReport 广告组报表批量查询接口。
+// GET /api/v1/stats/adgroup-report?advertiser_id=123&adgroup_ids=id1,id2&start_date=2026-01-01&end_date=2026-01-07
+func (h *Handler) GetAdGroupReport(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	advertiserIDStr := c.Query("advertiser_id")
+	adGroupIDsStr := c.Query("adgroup_ids")
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+
+	if advertiserIDStr == "" || adGroupIDsStr == "" || startDate == "" || endDate == "" {
+		response.BadRequest(c, "advertiser_id、adgroup_ids、start_date、end_date 均为必填参数")
+		return
+	}
+
+	advertiserID, err := parseUint64(advertiserIDStr)
+	if err != nil || advertiserID == 0 {
+		response.BadRequest(c, "无效的 advertiser_id")
+		return
+	}
+
+	start, err1 := time.Parse("2006-01-02", startDate)
+	end, err2 := time.Parse("2006-01-02", endDate)
+	if err1 != nil || err2 != nil {
+		response.BadRequest(c, "日期格式无效，请使用 YYYY-MM-DD")
+		return
+	}
+	if end.Sub(start) > 30*24*time.Hour {
+		response.Fail(c, 422, response.CodeInvalidParam, "日期跨度最多30天")
+		return
+	}
+
+	adGroupIDs := strings.Split(adGroupIDsStr, ",")
+	for i, id := range adGroupIDs {
+		adGroupIDs[i] = strings.TrimSpace(id)
+	}
+
+	result, err := h.svc.GetAdGroupReport(c.Request.Context(), userID, advertiserID, adGroupIDs, startDate, endDate)
+	if err != nil {
+		response.Fail(c, 500, response.CodeServerError, "获取报表数据失败")
+		return
+	}
+	response.OK(c, result)
+}
+
 func parseUint64(s string) (uint64, error) {
 	v, err := strconv.ParseUint(s, 10, 64)
 	if err != nil {

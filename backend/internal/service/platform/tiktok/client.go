@@ -253,6 +253,27 @@ func (c *Client) GetBalance(accessToken, advertiserID string) (*platform.Balance
 	}, nil
 }
 
+// UpdateAdvertiserBudget 修改广告主账户日预算。
+// 参考：https://business-api.tiktok.com/portal/docs?id=1739939050770434
+func (c *Client) UpdateAdvertiserBudget(accessToken, advertiserID string, budget float64) error {
+	body := map[string]any{
+		"advertiser_id": advertiserID,
+		"budget":        budget,
+		"budget_mode":   "BUDGET_MODE_DAY",
+	}
+	var resp struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := c.postWithToken("/open_api/"+apiVersion+"/advertiser/update/", body, accessToken, &resp); err != nil {
+		return err
+	}
+	if resp.Code != 0 {
+		return fmt.Errorf("tiktok update advertiser budget error %d: %s", resp.Code, resp.Message)
+	}
+	return nil
+}
+
 // ── 推广系列 ───────────────────────────────────────────────────
 
 func (c *Client) GetCampaigns(accessToken, advertiserID string, page, pageSize int) ([]*platform.CampaignInfo, int64, error) {

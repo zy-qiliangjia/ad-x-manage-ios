@@ -71,6 +71,36 @@ func (h *Handler) Balance(c *gin.Context) {
 	response.OK(c, res)
 }
 
+// UpdateBudget 修改广告主账户日预算
+// PATCH /api/v1/advertisers/:id/budget
+func (h *Handler) UpdateBudget(c *gin.Context) {
+	id, err := parseID(c, "id")
+	if err != nil {
+		response.BadRequest(c, "无效的广告主 ID")
+		return
+	}
+	var req dto.UpdateAdvertiserBudgetRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	userID := middleware.GetUserID(c)
+
+	if err := h.svc.UpdateBudget(c.Request.Context(), userID, id, req.Budget); err != nil {
+		switch {
+		case errors.Is(err, advertisersvc.ErrNotFound):
+			response.BadRequest(c, "广告主不存在")
+		case errors.Is(err, advertisersvc.ErrForbidden):
+			response.Forbidden(c, "无权限操作该广告主")
+		default:
+			response.PlatformError(c, fmt.Sprintf("修改预算失败: %v", err))
+		}
+		return
+	}
+
+	response.OK(c, nil)
+}
+
 // Sync 手动触发全量数据同步
 // POST /api/v1/advertisers/:id/sync
 func (h *Handler) Sync(c *gin.Context) {

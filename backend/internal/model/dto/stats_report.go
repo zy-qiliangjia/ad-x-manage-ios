@@ -26,3 +26,18 @@ type StatsReportResponse struct {
 	List         []*AdvertiserReportItem `json:"list"`
 	TotalMetrics *AdvertiserReportItem   `json:"total_metrics"`
 }
+
+// AdGroupReportItem 单广告组报表明细。
+type AdGroupReportItem struct {
+	AdGroupID   string  `json:"adgroup_id"`
+	Spend       float64 `json:"spend"`
+	Clicks      int64   `json:"clicks"`
+	Impressions int64   `json:"impressions"`
+	Conversion  int64   `json:"conversion"`
+	CPA         float64 `json:"cpa"`
+}
+
+// AdGroupReportResponse 广告组报表批量查询响应。
+type AdGroupReportResponse struct {
+	List []*AdGroupReportItem `json:"list"`
+}

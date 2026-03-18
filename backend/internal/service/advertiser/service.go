@@ -11,6 +11,7 @@ import (
 	"ad-x-manage/backend/internal/model/dto"
 	"ad-x-manage/backend/internal/model/entity"
 	advertiserrepo "ad-x-manage/backend/internal/repository/advertiser"
+	operationlogrepo "ad-x-manage/backend/internal/repository/operationlog"
 	tokenrepo "ad-x-manage/backend/internal/repository/token"
 	"ad-x-manage/backend/internal/service/platform"
 	syncsvc "ad-x-manage/backend/internal/service/sync"
@@ -24,29 +25,33 @@ var (
 type Service interface {
 	List(ctx context.Context, userID uint64, req *dto.AdvertiserListRequest) ([]*dto.AdvertiserListItem, int64, error)
 	GetBalance(ctx context.Context, userID, advertiserID uint64) (*dto.BalanceResponse, error)
+	UpdateBudget(ctx context.Context, userID, advertiserID uint64, budget float64) error
 	Sync(ctx context.Context, userID, advertiserID uint64) (*dto.SyncResponse, error)
 	// SyncAll 对当前用户所有有效广告主触发后台全量同步，立即返回广告主数量。
 	SyncAll(ctx context.Context, userID uint64) (int, error)
 }
 
 type service struct {
-	advRepo    advertiserrepo.Repository
-	tokenRepo  tokenrepo.Repository
-	clients    map[string]platform.Client
-	syncSvc    syncsvc.Service
-	log        *zap.Logger
+	advRepo   advertiserrepo.Repository
+	tokenRepo tokenrepo.Repository
+	logRepo   operationlogrepo.Repository
+	clients   map[string]platform.Client
+	syncSvc   syncsvc.Service
+	log       *zap.Logger
 }
 
 func New(
 	advRepo advertiserrepo.Repository,
 	tokenRepo tokenrepo.Repository,
+	logRepo operationlogrepo.Repository,
 	clients map[string]platform.Client,
 	syncSvc syncsvc.Service,
 	log *zap.Logger,
 ) Service {
 	return &service{
-		advRepo:    advRepo,
-		tokenRepo:  tokenRepo,
+		advRepo:   advRepo,
+		tokenRepo: tokenRepo,
+		logRepo:   logRepo,
 		clients:   clients,
 		syncSvc:   syncSvc,
 		log:       log,
@@ -101,6 +106,50 @@ func (s *service) GetBalance(ctx context.Context, userID, advertiserID uint64) (
 		Balance:      balance.Balance,
 		Currency:     balance.Currency,
 	}, nil
+}
+
+// UpdateBudget 修改广告主账户日预算：调用平台 API → 更新本地 DB → 写操作日志。
+func (s *service) UpdateBudget(ctx context.Context, userID, advertiserID uint64, budget float64) error {
+	adv, err := s.checkOwnership(ctx, userID, advertiserID)
+	if err != nil {
+		return err
+	}
+
+	accessToken, err := s.getAccessToken(ctx, adv.TokenID, adv.Platform)
+	if err != nil {
+		return fmt.Errorf("get access token: %w", err)
+	}
+
+	client, ok := s.clients[adv.Platform]
+	if !ok {
+		return fmt.Errorf("unsupported platform: %s", adv.Platform)
+	}
+
+	var oldBudget float64
+	if adv.DailyBudget != nil {
+		oldBudget = *adv.DailyBudget
+	}
+
+	if err := client.UpdateAdvertiserBudget(accessToken, adv.AdvertiserID, budget); err != nil {
+		s.writeLog(ctx, userID, adv,
+			entity.ActionBudgetUpdate, entity.TargetTypeAdvertiser,
+			adv.AdvertiserID, adv.AdvertiserName,
+			entity.JSONField{"budget": oldBudget},
+			entity.JSONField{"budget": budget}, 0, err.Error())
+		return fmt.Errorf("platform update advertiser budget: %w", err)
+	}
+
+	if err := s.advRepo.UpdateDailyBudget(ctx, advertiserID, budget); err != nil {
+		s.log.Warn("update advertiser daily_budget in db failed",
+			zap.Uint64("advertiser_id", advertiserID), zap.Error(err))
+	}
+
+	s.writeLog(ctx, userID, adv,
+		entity.ActionBudgetUpdate, entity.TargetTypeAdvertiser,
+		adv.AdvertiserID, adv.AdvertiserName,
+		entity.JSONField{"budget": oldBudget},
+		entity.JSONField{"budget": budget}, 1, "")
+	return nil
 }
 
 // Sync 手动触发全量数据同步（同步运行，有 context 超时控制）。
@@ -174,7 +223,32 @@ func (s *service) getAccessToken(ctx context.Context, tokenID uint64, _ string) 
 	return token.AccessToken, nil
 }
 
+func (s *service) writeLog(ctx context.Context, userID uint64, adv *entity.Advertiser,
+	action, targetType, targetID, targetName string,
+	before, after entity.JSONField, result uint8, failReason string,
+) {
+	_ = s.logRepo.Create(ctx, &entity.OperationLog{
+		UserID:       userID,
+		AdvertiserID: adv.ID,
+		Platform:     adv.Platform,
+		Action:       action,
+		TargetType:   targetType,
+		TargetID:     targetID,
+		TargetName:   targetName,
+		BeforeVal:    before,
+		AfterVal:     after,
+		Result:       result,
+		FailReason:   failReason,
+	})
+}
+
 func toListItem(a *entity.Advertiser) *dto.AdvertiserListItem {
+	budget := 0.0
+	budgetMode := "BUDGET_MODE_INFINITE"
+	if a.DailyBudget != nil && *a.DailyBudget > 0 {
+		budget = *a.DailyBudget
+		budgetMode = "BUDGET_MODE_DAY"
+	}
 	return &dto.AdvertiserListItem{
 		ID:             a.ID,
 		Platform:       a.Platform,
@@ -184,5 +258,7 @@ func toListItem(a *entity.Advertiser) *dto.AdvertiserListItem {
 		Timezone:       a.Timezone,
 		Status:         a.Status,
 		SyncedAt:       a.SyncedAt,
+		Budget:         budget,
+		BudgetMode:     budgetMode,
 	}
 }

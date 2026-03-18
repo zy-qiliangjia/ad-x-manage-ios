@@ -17,10 +17,18 @@ final class AdGroupListViewModel: ObservableObject {
 
     // 汇总统计
     @Published var dateFilter: DateRangeFilter = .last7Days {
-        didSet { Task { await loadSummary() } }
+        didSet {
+            metricsLoadedKey = nil // 日期变化时清除指标缓存
+            Task { await loadSummary() }
+            Task { await loadAdGroupMetrics() }
+        }
     }
     @Published var summary: StatsSummary? = nil
     @Published var summaryLoading        = false
+
+    // 逐广告组报表指标
+    @Published var adGroupMetrics: [String: AdGroupReportMetrics] = [:]
+    @Published var isLoadingMetrics = false
 
     var lastUpdatedLabel: String? { summary?.updatedTimeLabel }
 
@@ -30,6 +38,11 @@ final class AdGroupListViewModel: ObservableObject {
     private let statsService = StatsService.shared
     private var page     = 1
     private let pageSize = 20
+
+    // 30分钟本地指标缓存
+    private var metricsLoadedKey: String? = nil
+    private var metricsLoadedAt: Date?    = nil
+    private let metricsCacheTTL: TimeInterval = 30 * 60
 
     init(advertiserID: UInt64, campaignID: UInt64 = 0) {
         self.advertiserID = advertiserID
@@ -51,6 +64,7 @@ final class AdGroupListViewModel: ObservableObject {
         } catch { self.error = message(error) }
         isLoading = false
         await loadSummary()
+        await loadAdGroupMetrics()
     }
 
     func refresh() async {
@@ -62,6 +76,37 @@ final class AdGroupListViewModel: ObservableObject {
             page    = 2
         } catch { self.error = message(error) }
         await loadSummary()
+        metricsLoadedKey = nil // 刷新时强制重新拉取
+        await loadAdGroupMetrics()
+    }
+
+    func loadAdGroupMetrics() async {
+        guard !items.isEmpty else { return }
+
+        let r = dateFilter.dateRange
+        let cacheKey = "\(advertiserID)-\(r.from)-\(r.to)"
+
+        // 30分钟内已缓存则跳过
+        if let key = metricsLoadedKey, let loadedAt = metricsLoadedAt,
+           key == cacheKey, Date().timeIntervalSince(loadedAt) < metricsCacheTTL {
+            return
+        }
+
+        isLoadingMetrics = true
+        let ids = items.map { $0.adgroupID }
+        if let resp = try? await statsService.adGroupReport(
+            advertiserDBID: advertiserID,
+            adGroupIDs: ids,
+            startDate: r.from,
+            endDate: r.to
+        ) {
+            var map: [String: AdGroupReportMetrics] = [:]
+            for m in resp.list { map[m.adgroupID] = m }
+            adGroupMetrics = map
+            metricsLoadedKey = cacheKey
+            metricsLoadedAt  = Date()
+        }
+        isLoadingMetrics = false
     }
 
     func loadSummary() async {

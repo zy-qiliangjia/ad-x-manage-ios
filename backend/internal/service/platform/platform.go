@@ -24,6 +24,8 @@ type Client interface {
 	GetAdvertiserInfo(accessToken string, advertiserIDs []string) ([]*AdvertiserInfo, error)
 	// GetBalance 实时查询广告主账户余额
 	GetBalance(accessToken, advertiserID string) (*BalanceInfo, error)
+	// UpdateAdvertiserBudget 修改广告主账户日预算
+	UpdateAdvertiserBudget(accessToken, advertiserID string, budget float64) error
 
 	// ── 推广系列 ───────────────────────────────────────────
 	GetCampaigns(accessToken, advertiserID string, page, pageSize int) ([]*CampaignInfo, int64, error)
@@ -51,6 +53,10 @@ type Client interface {
 	// GetAdvertiserDailyBudget 查询广告主账户级日预算。
 	// 返回 map[platform_advertiser_id]daily_budget（float64）。
 	GetAdvertiserDailyBudget(accessToken string, advertiserIDs []string) (map[string]float64, error)
+
+	// GetAdGroupReport 拉取逐广告组报表明细（per-adgroup）。
+	// adGroupIDs 为平台广告组 ID 列表，按 ≤5 个/批切分请求，返回各广告组明细。
+	GetAdGroupReport(accessToken, advertiserID string, adGroupIDs []string, startDate, endDate string) ([]*AdGroupReportItem, error)
 }
 
 // ── 共享数据结构 ───────────────────────────────────────────────
@@ -121,6 +127,16 @@ type ReportResult struct {
 	Impressions float64
 	Clicks      float64
 	Conversions float64
+}
+
+// AdGroupReportItem 单广告组报表明细指标。
+type AdGroupReportItem struct {
+	AdGroupID   string
+	Spend       float64
+	Clicks      int64
+	Impressions int64
+	Conversion  int64
+	CPA         float64
 }
 
 // AdvertiserReportItem 单广告主报表明细指标。

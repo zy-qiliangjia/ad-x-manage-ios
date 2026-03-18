@@ -1,10 +1,12 @@
 package tiktok
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"net/http"
 	"net/url"
 	"sort"
 	"strconv"
@@ -382,6 +384,141 @@ func (c *Client) GetAdvertiserDailyBudget(accessToken string, advertiserIDs []st
 		result[item.AdvertiserID] = item.Budget
 	}
 	return result, nil
+}
+
+// ── 逐广告组报表（per-adgroup）─────────────────────────────────
+
+const adGroupReportCacheTTL = 5 * time.Minute
+
+// adGroupReportCacheKey 生成单广告组报表缓存 key。
+// 格式：stats:report:adgroup:tiktok:{advertiser_id}:{adgroup_id}:{start_date}:{end_date}
+func adGroupReportCacheKey(advertiserID, adGroupID, startDate, endDate string) string {
+	return fmt.Sprintf("stats:report:adgroup:tiktok:%s:%s:%s:%s", advertiserID, adGroupID, startDate, endDate)
+}
+
+// GetAdGroupReport 返回 adGroupIDs 中每个广告组在 [startDate, endDate] 内的明细指标。
+// 优先读 Redis 缓存（per-adgroup key），未命中时调用 TikTok Integrated Report API。
+func (c *Client) GetAdGroupReport(accessToken, advertiserID string, adGroupIDs []string, startDate, endDate string) ([]*platform.AdGroupReportItem, error) {
+	if len(adGroupIDs) == 0 {
+		return nil, nil
+	}
+
+	ctx := context.Background()
+	result := make(map[string]*platform.AdGroupReportItem, len(adGroupIDs))
+	var uncached []string
+
+	// 1. 从缓存读取已有结果
+	for _, id := range adGroupIDs {
+		if c.rdb != nil {
+			if raw, err := c.rdb.Get(ctx, adGroupReportCacheKey(advertiserID, id, startDate, endDate)).Bytes(); err == nil {
+				var item platform.AdGroupReportItem
+				if jsonErr := json.Unmarshal(raw, &item); jsonErr == nil {
+					result[id] = &item
+					continue
+				}
+			}
+		}
+		uncached = append(uncached, id)
+	}
+
+	// 2. 批量拉取未命中缓存的 ID
+	if len(uncached) > 0 {
+		items, err := c.fetchAdGroupBatch(ctx, accessToken, advertiserID, uncached, startDate, endDate)
+		if err == nil {
+			for _, item := range items {
+				result[item.AdGroupID] = item
+				if c.rdb != nil {
+					if raw, err := json.Marshal(item); err == nil {
+						_ = c.rdb.Set(ctx, adGroupReportCacheKey(advertiserID, item.AdGroupID, startDate, endDate), raw, adGroupReportCacheTTL).Err()
+					}
+				}
+			}
+		}
+	}
+
+	// 3. 按原始顺序输出，缺失的补零值
+	out := make([]*platform.AdGroupReportItem, 0, len(adGroupIDs))
+	for _, id := range adGroupIDs {
+		if item, ok := result[id]; ok {
+			out = append(out, item)
+		} else {
+			out = append(out, &platform.AdGroupReportItem{AdGroupID: id})
+		}
+	}
+	return out, nil
+}
+
+// fetchAdGroupBatch 调用 TikTok Integrated Report API 拉取广告组明细数据。
+func (c *Client) fetchAdGroupBatch(ctx context.Context, accessToken, advertiserID string, adGroupIDs []string, startDate, endDate string) ([]*platform.AdGroupReportItem, error) {
+	idsJSON, _ := json.Marshal(adGroupIDs)
+	body := map[string]any{
+		"advertiser_id": advertiserID,
+		"data_level":    "AUCTION_ADGROUP",
+		"report_type":   "BASIC",
+		"dimensions":    []string{"adgroup_id"},
+		"metrics":       []string{"spend", "clicks", "impressions", "conversion", "cost_per_conversion"},
+		"filtering": []map[string]any{
+			{"field_name": "adgroup_ids", "filter_type": "IN", "filter_value": string(idsJSON)},
+		},
+		"start_date": startDate,
+		"end_date":   endDate,
+		"page":       1,
+		"page_size":  1000,
+	}
+
+	var resp struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			List []struct {
+				Dimensions struct {
+					AdGroupID string `json:"adgroup_id"`
+				} `json:"dimensions"`
+				Metrics struct {
+					Spend             string `json:"spend"`
+					Clicks            string `json:"clicks"`
+					Impressions       string `json:"impressions"`
+					Conversion        string `json:"conversion"`
+					CostPerConversion string `json:"cost_per_conversion"`
+				} `json:"metrics"`
+			} `json:"list"`
+		} `json:"data"`
+	}
+
+	b, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base()+"/open_api/"+apiVersion+"/report/integrated/get/", bytes.NewReader(b))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Access-Token", accessToken)
+	if err := c.do(req, &resp); err != nil {
+		return nil, fmt.Errorf("tiktok adgroup report api: %w", err)
+	}
+	if resp.Code != 0 {
+		return nil, fmt.Errorf("tiktok adgroup report api error %d: %s", resp.Code, resp.Message)
+	}
+
+	items := make([]*platform.AdGroupReportItem, 0, len(resp.Data.List))
+	for _, row := range resp.Data.List {
+		spend, _ := strconv.ParseFloat(row.Metrics.Spend, 64)
+		clicks, _ := strconv.ParseInt(row.Metrics.Clicks, 10, 64)
+		impressions, _ := strconv.ParseInt(row.Metrics.Impressions, 10, 64)
+		conversion, _ := strconv.ParseInt(row.Metrics.Conversion, 10, 64)
+		cpa, _ := strconv.ParseFloat(row.Metrics.CostPerConversion, 64)
+		items = append(items, &platform.AdGroupReportItem{
+			AdGroupID:   row.Dimensions.AdGroupID,
+			Spend:       spend,
+			Clicks:      clicks,
+			Impressions: impressions,
+			Conversion:  conversion,
+			CPA:         cpa,
+		})
+	}
+	return items, nil
 }
 
 // sortedKey 返回 ID 排序后以逗号拼接的字符串（供缓存 key 使用）。

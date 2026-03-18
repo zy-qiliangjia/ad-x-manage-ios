@@ -685,6 +685,8 @@ struct AdsAdGroupView: View {
                                 AdGroupManageCard(
                                     item: item,
                                     isUpdating: vm.updatingStatusID == item.id,
+                                    metrics: vm.adGroupMetrics[item.adgroupID],
+                                    isLoadingMetrics: vm.isLoadingMetrics,
                                     onBudget: { vm.budgetTarget = item },
                                     onToggle: { vm.statusConfirmTarget = item },
                                     onDrill: { navPath.append(.ads(advertiser: advertiser, adgroup: item)) }
@@ -935,6 +937,8 @@ private struct CampaignManageCard: View {
 private struct AdGroupManageCard: View {
     let item: AdGroupItem
     let isUpdating: Bool
+    let metrics: AdGroupReportMetrics?
+    let isLoadingMetrics: Bool
     let onBudget: () -> Void
     let onToggle: () -> Void
     let onDrill: () -> Void
@@ -966,15 +970,12 @@ private struct AdGroupManageCard: View {
             .padding(.horizontal, AppTheme.Spacing.lg)
             .padding(.top, AppTheme.Spacing.md)
 
-            HStack {
-                metricCell(label: "消耗", value: item.spend.statFormatted)
-                metricCell(label: item.budgetMode.budgetModeLabel,
-                           value: item.budgetMode == "BUDGET_MODE_INFINITE"
-                               ? "不限" : "¥\(Int(item.budget))")
-                Spacer()
+            // 指标区域
+            if isLoadingMetrics && metrics == nil {
+                adGroupMetricsSkeleton
+            } else {
+                adGroupMetricsGrid
             }
-            .padding(.horizontal, AppTheme.Spacing.lg)
-            .padding(.vertical, AppTheme.Spacing.sm)
 
             Divider().padding(.horizontal, AppTheme.Spacing.lg)
 
@@ -1013,12 +1014,51 @@ private struct AdGroupManageCard: View {
         .contentShape(Rectangle())
     }
 
+    // 6格指标网格：消耗、点击、展示 / 转化、CPA、预算
+    private var adGroupMetricsGrid: some View {
+        let budgetVal = item.budgetMode == "BUDGET_MODE_INFINITE" ? "不限" : item.budget.statFormatted
+        let cpaVal    = metrics.map { $0.cpa > 0 ? $0.cpa.statFormatted : "-" } ?? "-"
+        return LazyVGrid(
+            columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
+            spacing: AppTheme.Spacing.sm
+        ) {
+            metricCell(label: "消耗",    value: metrics.map { $0.spend.statFormatted }      ?? item.spend.statFormatted)
+            metricCell(label: "点击",    value: metrics.map { "\($0.clicks)" }              ?? "-")
+            metricCell(label: "展示",    value: metrics.map { "\($0.impressions)" }         ?? "-")
+            metricCell(label: "转化",    value: metrics.map { "\($0.conversion)" }          ?? "-")
+            metricCell(label: "CPA",     value: cpaVal)
+            metricCell(label: item.budgetMode.budgetModeLabel, value: budgetVal)
+        }
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.vertical, AppTheme.Spacing.sm)
+    }
+
+    // 加载骨架
+    private var adGroupMetricsSkeleton: some View {
+        LazyVGrid(
+            columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
+            spacing: AppTheme.Spacing.sm
+        ) {
+            ForEach(0..<6, id: \.self) { _ in
+                VStack(alignment: .leading, spacing: 2) {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(AppTheme.Colors.textSecondary.opacity(0.15))
+                        .frame(width: 44, height: 13)
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(AppTheme.Colors.textSecondary.opacity(0.10))
+                        .frame(width: 28, height: 10)
+                }
+            }
+        }
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.vertical, AppTheme.Spacing.sm)
+    }
+
     private func metricCell(label: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value).font(.system(size: 13, weight: .semibold)).foregroundStyle(AppTheme.Colors.textPrimary)
             Text(label).font(.system(size: 10)).foregroundStyle(AppTheme.Colors.textSecondary)
         }
-        .padding(.trailing, AppTheme.Spacing.lg)
     }
 }
 
@@ -1434,6 +1474,8 @@ struct AdsAdGroupsForAccountView: View {
                                 AdGroupManageCard(
                                     item: item,
                                     isUpdating: vm.updatingStatusID == item.id,
+                                    metrics: vm.adGroupMetrics[item.adgroupID],
+                                    isLoadingMetrics: vm.isLoadingMetrics,
                                     onBudget: { vm.budgetTarget = item },
                                     onToggle: { vm.statusConfirmTarget = item },
                                     onDrill: { navPath.append(.ads(advertiser: advertiser, adgroup: item)) }

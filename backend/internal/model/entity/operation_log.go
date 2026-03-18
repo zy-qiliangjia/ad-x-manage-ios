@@ -33,9 +33,10 @@ const (
 
 // TargetType 操作对象常量
 const (
-	TargetTypeCampaign = "campaign"
-	TargetTypeAdGroup  = "adgroup"
-	TargetTypeAd       = "ad"
+	TargetTypeCampaign   = "campaign"
+	TargetTypeAdGroup    = "adgroup"
+	TargetTypeAd         = "ad"
+	TargetTypeAdvertiser = "advertiser"
 )
 
 // JSONField 支持 JSON 字段的自定义类型（兼容 GORM + MySQL JSON 列）。

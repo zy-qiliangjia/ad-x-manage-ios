@@ -46,6 +46,7 @@ enum APIEndpoint {
     case stats
     case statsSummary
     case statsReport
+    case statsAdGroupReport
 
     // MARK: - Path
 
@@ -85,6 +86,7 @@ enum APIEndpoint {
         case .stats:                              return "/stats"
         case .statsSummary:                       return "/stats/summary"
         case .statsReport:                        return "/stats/report"
+        case .statsAdGroupReport:                 return "/stats/adgroup-report"
         }
     }
 

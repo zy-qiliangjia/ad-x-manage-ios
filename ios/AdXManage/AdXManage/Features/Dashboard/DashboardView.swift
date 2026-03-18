@@ -11,9 +11,12 @@ final class DashboardViewModel: ObservableObject {
     @Published var platformFilter: Platform? = nil {
         didSet { Task { await load() } }
     }
+<<<<<<< HEAD
     @Published var dateFilter: DateRangeFilter = .last7Days {
         didSet { Task { await load() } }
     }
+=======
+>>>>>>> origin/main
     @Published var lastFetchedAt: Date? = nil
 
     private let service = StatsService.shared
@@ -30,6 +33,7 @@ final class DashboardViewModel: ObservableObject {
         isLoading = true
         error = nil
         do {
+<<<<<<< HEAD
             let range = dateFilter.dateRange
             overview = try await service.overview(
                 platform: platformFilter?.rawValue,
@@ -39,6 +43,10 @@ final class DashboardViewModel: ObservableObject {
             lastFetchedAt = Date()
         } catch is CancellationError {
             // view teardown — suppress
+=======
+            overview = try await service.overview(platform: platformFilter?.rawValue)
+            lastFetchedAt = Date()
+>>>>>>> origin/main
         } catch {
             self.error = (error as? APIError)?.errorDescription ?? error.localizedDescription
         }

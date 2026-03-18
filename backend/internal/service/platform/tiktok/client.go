@@ -4,11 +4,13 @@ package tiktok
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -471,6 +473,69 @@ func (c *Client) GetAds(accessToken, advertiserID, adGroupID string, page, pageS
 		})
 	}
 	return result, resp.Data.PageInfo.TotalNumber, nil
+}
+
+// ── 报表 ────────────────────────────────────────────────────────
+
+// GetReport 查询指定广告主在日期范围内的基础报表汇总指标。
+// 文档：https://business-api.tiktok.com/portal/docs?id=1738864915188737
+func (c *Client) GetReport(ctx context.Context, accessToken, advertiserID, startDate, endDate string) (*platform.ReportResult, error) {
+	body := map[string]any{
+		"advertiser_id": advertiserID,
+		"report_type":   "BASIC",
+		"data_level":    "AUCTION_ADVERTISER",
+		"dimensions":    []string{"advertiser_id", "stat_time_day"},
+		"metrics":       []string{"spend", "show", "click", "conversion"},
+		"start_date":    startDate,
+		"end_date":      endDate,
+		"page":          1,
+		"page_size":     1000,
+	}
+	var resp struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			List []struct {
+				Metrics struct {
+					Spend      string `json:"spend"`
+					Show       string `json:"show"`
+					Click      string `json:"click"`
+					Conversion string `json:"conversion"`
+				} `json:"metrics"`
+			} `json:"list"`
+		} `json:"data"`
+	}
+
+	b, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base()+"/open_api/"+apiVersion+"/report/advertiser/get/", bytes.NewReader(b))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Access-Token", accessToken)
+	if err := c.do(req, &resp); err != nil {
+		return nil, err
+	}
+	if resp.Code != 0 {
+		return nil, fmt.Errorf("tiktok get report error %d: %s", resp.Code, resp.Message)
+	}
+
+	result := &platform.ReportResult{}
+	for _, row := range resp.Data.List {
+		result.Spend += parseFloat(row.Metrics.Spend)
+		result.Impressions += parseFloat(row.Metrics.Show)
+		result.Clicks += parseFloat(row.Metrics.Click)
+		result.Conversions += parseFloat(row.Metrics.Conversion)
+	}
+	return result, nil
+}
+
+func parseFloat(s string) float64 {
+	v, _ := strconv.ParseFloat(s, 64)
+	return v
 }
 
 // ── HTTP 工具方法 ───────────────────────────────────────────────

@@ -208,7 +208,9 @@ struct AdGroupListView: View {
     private var list: some View {
         List {
             ForEach(vm.items) { item in
-                AdGroupRow(item: item, isUpdatingStatus: vm.updatingStatusID == item.id)
+                AdGroupRow(item: item, isUpdatingStatus: vm.updatingStatusID == item.id) {
+                        vm.statusConfirmTarget = item
+                    }
                     .swipeActions(edge: .leading) {
                         Button { vm.budgetTarget = item } label: {
                             Label("改预算", systemImage: "pencil.circle.fill")
@@ -255,6 +257,7 @@ struct AdGroupListView: View {
 struct AdGroupRow: View {
     let item: AdGroupItem
     let isUpdatingStatus: Bool
+    var onToggleStatus: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -267,21 +270,25 @@ struct AdGroupRow: View {
                 else { StatusBadge(status: item.status) }
             }
             HStack(spacing: 16) {
-                budgetView
                 spendView
                 if item.bidPrice > 0 { bidView }
+                Spacer()
+                toggleButton
             }
         }
         .padding(.vertical, 4)
     }
 
-    private var budgetView: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(item.budgetMode.budgetModeLabel).font(.caption2).foregroundStyle(.tertiary)
-            Text(item.budgetMode == "BUDGET_MODE_INFINITE"
-                 ? "不限" : item.budget.formatted(.number.precision(.fractionLength(2))))
-                .font(.caption.weight(.medium))
+    private var toggleButton: some View {
+        Button(action: onToggleStatus) {
+            Label(
+                item.status.isAdActive ? "暂停" : "开启",
+                systemImage: item.status.isAdActive ? "pause.circle" : "play.circle"
+            )
+            .font(.caption.weight(.medium))
+            .foregroundStyle(item.status.isAdActive ? .orange : .green)
         }
+        .buttonStyle(.plain)
     }
 
     private var spendView: some View {

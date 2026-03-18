@@ -934,7 +934,7 @@ private struct CampaignManageCard: View {
 
 // MARK: - AdGroupManageCard
 
-private struct AdGroupManageCard: View {
+struct AdGroupManageCard: View {
     let item: AdGroupItem
     let isUpdating: Bool
     let metrics: AdGroupReportMetrics?
@@ -1126,6 +1126,12 @@ final class AllAdGroupsViewModel: ObservableObject {
     @Published var error: String? = nil
     @Published var platformFilter: Platform? { didSet { Task { await refresh() } } }
 
+    @Published var budgetTarget: AdGroupItem?        = nil
+    @Published var statusConfirmTarget: AdGroupItem? = nil
+    @Published var updatingStatusID: UInt64?         = nil
+    @Published var adGroupMetrics: [String: AdGroupReportMetrics] = [:]
+    let isLoadingMetrics = false
+
     private let service  = AdDetailService.shared
     private var page     = 1
     private let pageSize = 20
@@ -1160,6 +1166,22 @@ final class AllAdGroupsViewModel: ObservableObject {
             items += fetched; hasMore = p.hasMore; page += 1
         } catch { self.error = msg(error) }
         isLoadingMore = false
+    }
+
+    func updateBudget(item: AdGroupItem, budget: Double) async {
+        do {
+            try await service.updateAdGroupBudget(id: item.id, budget: budget)
+            await refresh()
+        } catch { self.error = msg(error) }
+    }
+
+    func updateStatus(item: AdGroupItem, action: String) async {
+        updatingStatusID = item.id
+        defer { updatingStatusID = nil }
+        do {
+            try await service.updateAdGroupStatus(id: item.id, action: action)
+            await refresh()
+        } catch { self.error = msg(error) }
     }
 
     private func msg(_ e: Error) -> String? {
@@ -1346,16 +1368,21 @@ struct AdsAllAdGroupsView: View {
                                 isLoadingSummary: vm.isLoading
                             )
                             ForEach(vm.items) { item in
-                                Button {
-                                    let adv = AdvertiserListItem(
-                                        id: item.advertiserID, platform: item.platform,
-                                        advertiserID: String(item.advertiserID),
-                                        advertiserName: item.advertiserName)
-                                    navPath.append(.ads(advertiser: adv, adgroup: item))
-                                } label: {
-                                    AdGroupReadOnlyCard(item: item)
-                                }
-                                .buttonStyle(.plain)
+                                AdGroupManageCard(
+                                    item: item,
+                                    isUpdating: vm.updatingStatusID == item.id,
+                                    metrics: vm.adGroupMetrics[item.adgroupID],
+                                    isLoadingMetrics: vm.isLoadingMetrics,
+                                    onBudget: { vm.budgetTarget = item },
+                                    onToggle: { vm.statusConfirmTarget = item },
+                                    onDrill: {
+                                        let adv = AdvertiserListItem(
+                                            id: item.advertiserID, platform: item.platform,
+                                            advertiserID: String(item.advertiserID),
+                                            advertiserName: item.advertiserName)
+                                        navPath.append(.ads(advertiser: adv, adgroup: item))
+                                    }
+                                )
                                 .onAppear { if item.id == vm.items.last?.id { Task { await vm.loadMore() } } }
                             }
                             if vm.isLoadingMore { ProgressView().padding() }
@@ -1364,6 +1391,13 @@ struct AdsAllAdGroupsView: View {
                         .padding(.vertical, AppTheme.Spacing.md)
                     }
                     .refreshable { await vm.refresh() }
+                    .sheet(item: $vm.budgetTarget) { item in
+                        BudgetEditSheet(
+                            itemName: item.adgroupName,
+                            currentBudget: item.budget,
+                            budgetMode: item.budgetMode
+                        ) { newBudget in await vm.updateBudget(item: item, budget: newBudget) }
+                    }
                 }
             }
         }
@@ -1371,9 +1405,25 @@ struct AdsAllAdGroupsView: View {
         .navigationTitle("全部广告组")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .top) { platformPicker($vm.platformFilter) }
-        .alert("加载失败", isPresented: Binding(get: { vm.error != nil }, set: { if !$0 { vm.error = nil } })) {
+        .alert("操作失败", isPresented: Binding(get: { vm.error != nil }, set: { if !$0 { vm.error = nil } })) {
             Button("确定", role: .cancel) { vm.error = nil }
         } message: { Text(vm.error ?? "") }
+        .confirmationDialog(
+            vm.statusConfirmTarget?.status.isAdActive == true ? "确认暂停广告组？" : "确认开启广告组？",
+            isPresented: Binding(get: { vm.statusConfirmTarget != nil }, set: { if !$0 { vm.statusConfirmTarget = nil } }),
+            titleVisibility: .visible
+        ) {
+            if let target = vm.statusConfirmTarget {
+                let isPause = target.status.isAdActive
+                Button(isPause ? "暂停" : "开启", role: isPause ? .destructive : nil) {
+                    vm.statusConfirmTarget = nil
+                    Task { await vm.updateStatus(item: target, action: isPause ? "pause" : "enable") }
+                }
+                Button("取消", role: .cancel) { vm.statusConfirmTarget = nil }
+            }
+        } message: {
+            if let target = vm.statusConfirmTarget { Text(target.adgroupName) }
+        }
         .task { await vm.load() }
     }
 }
@@ -1574,42 +1624,6 @@ private struct CampaignReadOnlyCard: View {
         HStack(spacing: AppTheme.Spacing.md) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.campaignName)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(AppTheme.Colors.textPrimary)
-                    .lineLimit(2)
-                if !item.advertiserName.isEmpty {
-                    Text(item.advertiserName)
-                        .font(.system(size: 11))
-                        .foregroundStyle(AppTheme.Colors.textSecondary)
-                        .lineLimit(1)
-                }
-            }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 4) {
-                StatusBadge(status: item.status)
-                Text(item.spend.statFormatted)
-                    .font(.system(size: 11))
-                    .foregroundStyle(AppTheme.Colors.textSecondary)
-            }
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(AppTheme.Colors.textSecondary.opacity(0.4))
-        }
-        .padding(AppTheme.Spacing.md)
-        .background(AppTheme.Colors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xl))
-        .cardShadow()
-        .contentShape(Rectangle())
-    }
-}
-
-private struct AdGroupReadOnlyCard: View {
-    let item: AdGroupItem
-
-    var body: some View {
-        HStack(spacing: AppTheme.Spacing.md) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(item.adgroupName)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(AppTheme.Colors.textPrimary)
                     .lineLimit(2)

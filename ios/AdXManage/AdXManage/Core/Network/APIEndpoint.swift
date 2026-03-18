@@ -45,6 +45,7 @@ enum APIEndpoint {
     // ── 统计概览 ───────────────────────────────────────────
     case stats
     case statsSummary
+    case statsReport
 
     // MARK: - Path
 
@@ -83,6 +84,7 @@ enum APIEndpoint {
 
         case .stats:                              return "/stats"
         case .statsSummary:                       return "/stats/summary"
+        case .statsReport:                        return "/stats/report"
         }
     }
 

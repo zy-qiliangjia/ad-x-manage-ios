@@ -85,8 +85,8 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 	// B9: 操作日志
 	operationLogService := operationlogsvc.New(logRepo, advRepo)
 
-	// Dashboard: 统计概览
-	statsService := statssvc.New(db, log)
+	// Dashboard: 统计概览（需要 platform clients、tokenRepo、advRepo 以支持 GetAdvertiserReport）
+	statsService := statssvc.New(db, log, platformClients, tokenRepo, advRepo)
 
 	// ── Handlers ──────────────────────────────────────────
 	authHandler := authhandler.New(authService)
@@ -170,6 +170,7 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 		// Dashboard + 广告汇总统计
 		protected.GET("/stats", statsHandler.Overview)
 		protected.GET("/stats/summary", statsHandler.Summary)
+		protected.GET("/stats/report", statsHandler.GetReport)
 	}
 
 	return r

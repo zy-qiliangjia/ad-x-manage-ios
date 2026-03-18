@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net/url"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -168,4 +170,224 @@ func getCachedBatch(ctx context.Context, rdb *redis.Client, key string) (*platfo
 		return nil, false
 	}
 	return &stats, true
+}
+
+// ── 逐广告主报表（per-advertiser）──────────────────────────────
+
+const advReportCacheTTLBase = 5 * time.Minute
+
+// advReportCacheKey 生成单广告主报表缓存 key。
+// 格式：stats:report:adv:tiktok:{advertiser_id}:{start_date}:{end_date}
+func advReportCacheKey(advertiserID, startDate, endDate string) string {
+	return fmt.Sprintf("stats:report:adv:tiktok:%s:%s:%s", advertiserID, startDate, endDate)
+}
+
+// advReportCacheTTL 返回加随机抖动（±30s）的 TTL，分散缓存过期。
+func advReportCacheTTL() time.Duration {
+	jitter := time.Duration(rand.Intn(61)-30) * time.Second
+	return advReportCacheTTLBase + jitter
+}
+
+// GetAdvertiserReport 返回 advertiserIDs 中每个广告主在 [startDate, endDate] 内的明细指标。
+// 优先读 Redis 缓存（per-advertiser key），未命中的 ID 分批 ≤5 并发调用 TikTok API，
+// 结果缓存后合并返回；原始列表中无数据的广告主以零值占位。
+func (c *Client) GetAdvertiserReport(accessToken string, advertiserIDs []string, startDate, endDate string) ([]*platform.AdvertiserReportItem, error) {
+	if len(advertiserIDs) == 0 {
+		return nil, nil
+	}
+
+	ctx := context.Background()
+	result := make(map[string]*platform.AdvertiserReportItem, len(advertiserIDs))
+	var uncached []string
+
+	// 1. 从缓存读取已有结果
+	for _, id := range advertiserIDs {
+		if c.rdb != nil {
+			if raw, err := c.rdb.Get(ctx, advReportCacheKey(id, startDate, endDate)).Bytes(); err == nil {
+				var item platform.AdvertiserReportItem
+				if jsonErr := json.Unmarshal(raw, &item); jsonErr == nil {
+					result[id] = &item
+					continue
+				}
+			}
+		}
+		uncached = append(uncached, id)
+	}
+
+	// 2. 对未命中缓存的 ID 按批次 ≤5 并发请求
+	if len(uncached) > 0 {
+		batches := chunkIDs(uncached, batchSize)
+		type batchResult struct {
+			items []*platform.AdvertiserReportItem
+			err   error
+		}
+		ch := make(chan batchResult, len(batches))
+
+		var wg sync.WaitGroup
+		for i, batch := range batches {
+			wg.Add(1)
+			go func(idx int, ids []string) {
+				defer wg.Done()
+				// 轻量限速：错开批次起始时间
+				if idx > 0 {
+					time.Sleep(time.Duration(idx) * rateLimitInterval)
+				}
+				items, err := c.fetchAdvBatch(ctx, accessToken, ids, startDate, endDate)
+				ch <- batchResult{items: items, err: err}
+			}(i, batch)
+		}
+		wg.Wait()
+		close(ch)
+
+		for br := range ch {
+			if br.err != nil {
+				// 批次失败时记录但不中断；失败广告主以零值占位
+				continue
+			}
+			for _, item := range br.items {
+				result[item.AdvertiserID] = item
+				// 写入缓存
+				if c.rdb != nil {
+					if raw, err := json.Marshal(item); err == nil {
+						_ = c.rdb.Set(ctx, advReportCacheKey(item.AdvertiserID, startDate, endDate), raw, advReportCacheTTL()).Err()
+					}
+				}
+			}
+		}
+	}
+
+	// 3. 按原始顺序输出，缺失的补零值
+	out := make([]*platform.AdvertiserReportItem, 0, len(advertiserIDs))
+	for _, id := range advertiserIDs {
+		if item, ok := result[id]; ok {
+			out = append(out, item)
+		} else {
+			out = append(out, &platform.AdvertiserReportItem{AdvertiserID: id})
+		}
+	}
+	return out, nil
+}
+
+// advMetrics TikTok Report API 返回的单广告主 metrics 字段。
+type advMetrics struct {
+	Spend                          string `json:"spend"`
+	Clicks                         string `json:"clicks"`
+	Impressions                    string `json:"impressions"`
+	Conversion                     string `json:"conversion"`
+	CostPerConversion              string `json:"cost_per_conversion"`
+	SkanClickTimeCostPerConversion string `json:"skan_click_time_cost_per_conversion"`
+	Currency                       string `json:"currency"`
+	AdvertiserID                   string `json:"advertiser_id"`
+}
+
+// fetchAdvBatch 调用 TikTok Integrated Report API 获取 ≤5 个广告主的明细数据。
+func (c *Client) fetchAdvBatch(ctx context.Context, accessToken string, batchIDs []string, startDate, endDate string) ([]*platform.AdvertiserReportItem, error) {
+	idsJSON, _ := json.Marshal(batchIDs)
+	metricsJSON, _ := json.Marshal([]string{
+		"spend", "clicks", "impressions", "conversion",
+		"cost_per_conversion", "skan_click_time_cost_per_conversion", "currency",
+	})
+	dimensionsJSON, _ := json.Marshal([]string{"advertiser_id"})
+
+	params := url.Values{}
+	params.Set("page", "1")
+	params.Set("page_size", "1000")
+	params.Set("data_level", "AUCTION_ADVERTISER")
+	params.Set("report_type", "BASIC")
+	params.Set("dimensions", string(dimensionsJSON))
+	params.Set("metrics", string(metricsJSON))
+	params.Set("enable_total_metrics", "false")
+	params.Set("start_date", startDate)
+	params.Set("end_date", endDate)
+	params.Set("advertiser_ids", string(idsJSON))
+
+	var resp struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			List []struct {
+				Dimensions struct {
+					AdvertiserID string `json:"advertiser_id"`
+				} `json:"dimensions"`
+				Metrics advMetrics `json:"metrics"`
+			} `json:"list"`
+		} `json:"data"`
+	}
+
+	if err := c.get("/open_api/"+apiVersion+"/report/integrated/get/", params, accessToken, &resp); err != nil {
+		return nil, fmt.Errorf("tiktok adv report api: %w", err)
+	}
+	if resp.Code != 0 {
+		return nil, fmt.Errorf("tiktok adv report api error %d: %s", resp.Code, resp.Message)
+	}
+
+	items := make([]*platform.AdvertiserReportItem, 0, len(resp.Data.List))
+	for _, row := range resp.Data.List {
+		items = append(items, parseAdvMetrics(row.Dimensions.AdvertiserID, row.Metrics))
+	}
+	return items, nil
+}
+
+func parseAdvMetrics(advertiserID string, m advMetrics) *platform.AdvertiserReportItem {
+	spend, _ := strconv.ParseFloat(m.Spend, 64)
+	clicks, _ := strconv.ParseInt(m.Clicks, 10, 64)
+	impressions, _ := strconv.ParseInt(m.Impressions, 10, 64)
+	conversion, _ := strconv.ParseInt(m.Conversion, 10, 64)
+	cpc, _ := strconv.ParseFloat(m.CostPerConversion, 64)
+	cpa, _ := strconv.ParseFloat(m.SkanClickTimeCostPerConversion, 64)
+	return &platform.AdvertiserReportItem{
+		AdvertiserID:      advertiserID,
+		Spend:             spend,
+		Clicks:            clicks,
+		Impressions:       impressions,
+		Conversion:        conversion,
+		CostPerConversion: cpc,
+		CPA:               cpa,
+		Currency:          m.Currency,
+	}
+}
+
+// ── 广告主日预算 ────────────────────────────────────────────────
+
+// GetAdvertiserDailyBudget 查询广告主账户级日预算。
+// 调用 /advertiser/info/ 接口，请求 budget 字段，返回 map[advertiser_id]budget。
+func (c *Client) GetAdvertiserDailyBudget(accessToken string, advertiserIDs []string) (map[string]float64, error) {
+	if len(advertiserIDs) == 0 {
+		return nil, nil
+	}
+	idsJSON, _ := json.Marshal(advertiserIDs)
+	fieldsJSON, _ := json.Marshal([]string{"advertiser_id", "budget"})
+	params := url.Values{}
+	params.Set("advertiser_ids", string(idsJSON))
+	params.Set("fields", string(fieldsJSON))
+
+	var resp struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			List []struct {
+				AdvertiserID string  `json:"advertiser_id"`
+				Budget       float64 `json:"budget"`
+			} `json:"list"`
+		} `json:"data"`
+	}
+	if err := c.get("/open_api/"+apiVersion+"/advertiser/info/", params, accessToken, &resp); err != nil {
+		return nil, fmt.Errorf("tiktok get advertiser daily budget: %w", err)
+	}
+	if resp.Code != 0 {
+		return nil, fmt.Errorf("tiktok get advertiser daily budget error %d: %s", resp.Code, resp.Message)
+	}
+	result := make(map[string]float64, len(resp.Data.List))
+	for _, item := range resp.Data.List {
+		result[item.AdvertiserID] = item.Budget
+	}
+	return result, nil
+}
+
+// sortedKey 返回 ID 排序后以逗号拼接的字符串（供缓存 key 使用）。
+func sortedKey(ids []string) string {
+	sorted := make([]string, len(ids))
+	copy(sorted, ids)
+	sort.Strings(sorted)
+	return strings.Join(sorted, ",")
 }

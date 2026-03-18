@@ -3,6 +3,7 @@ package statshandler
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -68,6 +69,45 @@ func (h *Handler) Summary(c *gin.Context) {
 	result, err := h.svc.Summary(c.Request.Context(), userID, scope, scopeID, dateFrom, dateTo)
 	if err != nil {
 		response.Fail(c, 500, response.CodeServerError, "获取统计数据失败")
+		return
+	}
+	response.OK(c, result)
+}
+
+// GetReport 广告主报表批量查询接口。
+// GET /api/v1/stats/report?platform=tiktok&advertiser_ids=id1,id2&start_date=2026-01-01&end_date=2026-01-07
+func (h *Handler) GetReport(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	platformName := c.Query("platform")
+	advertiserIDsStr := c.Query("advertiser_ids")
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+
+	if platformName == "" || advertiserIDsStr == "" || startDate == "" || endDate == "" {
+		response.BadRequest(c, "platform、advertiser_ids、start_date、end_date 均为必填参数")
+		return
+	}
+
+	// 解析日期跨度（最多30天）
+	start, err1 := time.Parse("2006-01-02", startDate)
+	end, err2 := time.Parse("2006-01-02", endDate)
+	if err1 != nil || err2 != nil {
+		response.BadRequest(c, "日期格式无效，请使用 YYYY-MM-DD")
+		return
+	}
+	if end.Sub(start) > 30*24*time.Hour {
+		response.Fail(c, 422, response.CodeInvalidParam, "日期跨度最多30天")
+		return
+	}
+
+	advertiserIDs := strings.Split(advertiserIDsStr, ",")
+	for i, id := range advertiserIDs {
+		advertiserIDs[i] = strings.TrimSpace(id)
+	}
+
+	result, err := h.svc.GetAdvertiserReport(c.Request.Context(), userID, platformName, advertiserIDs, startDate, endDate)
+	if err != nil {
+		response.Fail(c, 500, response.CodeServerError, "获取报表数据失败")
 		return
 	}
 	response.OK(c, result)

@@ -43,6 +43,76 @@ struct StatsSummary: Decodable {
     }
 }
 
+// MARK: - 广告主报表指标
+
+struct AdvertiserReportMetrics: Decodable {
+    let advertiserID: String
+    let spend: Double
+    let clicks: Int
+    let impressions: Int
+    let conversion: Int
+    let costPerConversion: Double
+    let cpa: Double
+    let currency: String
+    let dailyBudget: Double
+
+    enum CodingKeys: String, CodingKey {
+        case advertiserID      = "advertiser_id"
+        case spend
+        case clicks
+        case impressions
+        case conversion
+        case costPerConversion = "cost_per_conversion"
+        case cpa
+        case currency
+        case dailyBudget       = "daily_budget"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        advertiserID      = (try? c.decodeIfPresent(String.self, forKey: .advertiserID)) ?? ""
+        spend             = (try? c.decodeIfPresent(Double.self, forKey: .spend))             ?? 0
+        clicks            = (try? c.decodeIfPresent(Int.self,    forKey: .clicks))            ?? 0
+        impressions       = (try? c.decodeIfPresent(Int.self,    forKey: .impressions))       ?? 0
+        conversion        = (try? c.decodeIfPresent(Int.self,    forKey: .conversion))        ?? 0
+        costPerConversion = (try? c.decodeIfPresent(Double.self, forKey: .costPerConversion)) ?? 0
+        cpa               = (try? c.decodeIfPresent(Double.self, forKey: .cpa))               ?? 0
+        currency          = (try? c.decodeIfPresent(String.self, forKey: .currency))          ?? ""
+        dailyBudget       = (try? c.decodeIfPresent(Double.self, forKey: .dailyBudget))       ?? 0
+    }
+
+    static var zero: AdvertiserReportMetrics {
+        AdvertiserReportMetrics(
+            advertiserID: "", spend: 0, clicks: 0, impressions: 0,
+            conversion: 0, costPerConversion: 0, cpa: 0, currency: "", dailyBudget: 0
+        )
+    }
+
+    private init(advertiserID: String, spend: Double, clicks: Int, impressions: Int,
+                 conversion: Int, costPerConversion: Double, cpa: Double,
+                 currency: String, dailyBudget: Double) {
+        self.advertiserID      = advertiserID
+        self.spend             = spend
+        self.clicks            = clicks
+        self.impressions       = impressions
+        self.conversion        = conversion
+        self.costPerConversion = costPerConversion
+        self.cpa               = cpa
+        self.currency          = currency
+        self.dailyBudget       = dailyBudget
+    }
+}
+
+struct StatsReportResponse: Decodable {
+    let list: [AdvertiserReportMetrics]
+    let totalMetrics: AdvertiserReportMetrics?
+
+    enum CodingKeys: String, CodingKey {
+        case list
+        case totalMetrics = "total_metrics"
+    }
+}
+
 // MARK: - 数据概览
 
 struct StatsOverview: Decodable {

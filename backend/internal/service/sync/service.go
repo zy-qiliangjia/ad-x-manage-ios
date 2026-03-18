@@ -95,6 +95,17 @@ func (s *service) SyncAdvertiser(ctx context.Context, adv *entity.Advertiser) (*
 		}
 	}
 
+	// 2b. 同步广告主级日预算
+	if budgets, err := client.GetAdvertiserDailyBudget(accessToken, []string{adv.AdvertiserID}); err == nil {
+		if budget, ok := budgets[adv.AdvertiserID]; ok && budget > 0 {
+			if err := s.advRepo.UpdateDailyBudget(ctx, adv.ID, budget); err != nil {
+				s.log.Warn("update daily_budget failed", zap.Uint64("advertiser_id", adv.ID), zap.Error(err))
+			}
+		}
+	} else {
+		s.log.Warn("get advertiser daily budget failed", zap.Uint64("advertiser_id", adv.ID), zap.Error(err))
+	}
+
 	// 3. 同步推广系列
 	campCount, errs := s.syncCampaigns(ctx, client, adv, accessToken)
 	result.CampaignCount = campCount

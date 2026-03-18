@@ -239,3 +239,5 @@ https://business-api.tiktok.com/open_api/v1.3/report/integrated/get?page=1&data_
     }
 }
 ```
+
+# ios 首页汇总数据调整-通过接口拉取，当前使用的还是旧的

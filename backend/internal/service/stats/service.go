@@ -2,12 +2,17 @@ package statssvc
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 
+	"ad-x-manage/backend/internal/model/dto"
 	"ad-x-manage/backend/internal/model/entity"
+	advertiserrepo "ad-x-manage/backend/internal/repository/advertiser"
+	tokenrepo "ad-x-manage/backend/internal/repository/token"
+	"ad-x-manage/backend/internal/service/platform"
 )
 
 // OverviewResult 数据概览聚合结果。
@@ -35,16 +40,27 @@ type Service interface {
 	Overview(ctx context.Context, userID uint64, platformFilter, startDate, endDate string) (*OverviewResult, error)
 	// Summary 按层级（advertiser/campaign/adgroup）聚合本地 DB 指标。
 	Summary(ctx context.Context, userID uint64, scope string, scopeID uint64, dateFrom, dateTo string) (*SummaryResult, error)
+	// GetAdvertiserReport 按广告主维度拉取报表明细，附带日预算。
+	GetAdvertiserReport(ctx context.Context, userID uint64, platformName string, advertiserIDs []string, startDate, endDate string) (*dto.StatsReportResponse, error)
 }
 
 type service struct {
-	db  *gorm.DB
-	log *zap.Logger
+	db        *gorm.DB
+	log       *zap.Logger
+	clients   map[string]platform.Client
+	tokenRepo tokenrepo.Repository
+	advRepo   advertiserrepo.Repository
 }
 
 // New 创建统计服务实例。
-func New(db *gorm.DB, log *zap.Logger) Service {
-	return &service{db: db, log: log}
+func New(db *gorm.DB, log *zap.Logger, clients map[string]platform.Client, tokenRepo tokenrepo.Repository, advRepo advertiserrepo.Repository) Service {
+	return &service{
+		db:        db,
+		log:       log,
+		clients:   clients,
+		tokenRepo: tokenRepo,
+		advRepo:   advRepo,
+	}
 }
 
 // Overview 查询当前用户的广告数据概览。
@@ -161,6 +177,101 @@ func (s *service) Summary(ctx context.Context, userID uint64, scope string, scop
 	}
 }
 
+// GetAdvertiserReport 从平台拉取逐广告主报表，附加本地 DB 的 daily_budget。
+func (s *service) GetAdvertiserReport(ctx context.Context, userID uint64, platformName string, advertiserIDs []string, startDate, endDate string) (*dto.StatsReportResponse, error) {
+	if len(advertiserIDs) == 0 {
+		return &dto.StatsReportResponse{List: []*dto.AdvertiserReportItem{}, TotalMetrics: &dto.AdvertiserReportItem{}}, nil
+	}
+
+	// 1. 校验该用户拥有这些广告主，并获取 daily_budget + token_id
+	advs, err := s.advRepo.FindByUserPlatformIDs(ctx, userID, platformName, advertiserIDs)
+	if err != nil {
+		return nil, fmt.Errorf("query advertisers: %w", err)
+	}
+
+	// 构建 advertiser_id → entity 映射
+	advMap := make(map[string]*entity.Advertiser, len(advs))
+	for _, a := range advs {
+		advMap[a.AdvertiserID] = a
+	}
+
+	// 2. 获取 access token（取第一个广告主的 token，同一平台共享同一 token）
+	var accessToken string
+	if len(advs) > 0 {
+		tok, err := s.tokenRepo.FindByID(ctx, advs[0].TokenID)
+		if err != nil || tok == nil {
+			return nil, fmt.Errorf("get access token: token not found")
+		}
+		accessToken = tok.AccessToken
+	}
+
+	// 3. 调用平台客户端获取逐广告主指标
+	client, ok := s.clients[platformName]
+	if !ok {
+		return nil, fmt.Errorf("unsupported platform: %s", platformName)
+	}
+
+	var platformItems []*platform.AdvertiserReportItem
+	if accessToken != "" {
+		platformItems, err = client.GetAdvertiserReport(accessToken, advertiserIDs, startDate, endDate)
+		if err != nil {
+			s.log.Warn("GetAdvertiserReport platform error",
+				zap.String("platform", platformName), zap.Error(err))
+			// 平台调用失败时返回零值列表，不报错
+			platformItems = nil
+		}
+	}
+
+	// 4. 合并 daily_budget 并构建响应
+	var totalSpend float64
+	var totalClicks, totalImpressions, totalConversion int64
+
+	list := make([]*dto.AdvertiserReportItem, 0, len(advertiserIDs))
+	for _, id := range advertiserIDs {
+		item := &dto.AdvertiserReportItem{AdvertiserID: id}
+
+		// 附加平台指标
+		if platformItems != nil {
+			for _, pi := range platformItems {
+				if pi.AdvertiserID == id {
+					item.Spend = pi.Spend
+					item.Clicks = pi.Clicks
+					item.Impressions = pi.Impressions
+					item.Conversion = pi.Conversion
+					item.CostPerConversion = pi.CostPerConversion
+					item.CPA = pi.CPA
+					item.Currency = pi.Currency
+					break
+				}
+			}
+		}
+
+		// 附加日预算（从 DB）
+		if adv, ok := advMap[id]; ok && adv.DailyBudget != nil {
+			item.DailyBudget = *adv.DailyBudget
+		}
+
+		// 累加汇总
+		totalSpend += item.Spend
+		totalClicks += item.Clicks
+		totalImpressions += item.Impressions
+		totalConversion += item.Conversion
+
+		list = append(list, item)
+	}
+
+	total := &dto.AdvertiserReportItem{
+		Spend:       totalSpend,
+		Clicks:      totalClicks,
+		Impressions: totalImpressions,
+		Conversion:  totalConversion,
+	}
+
+	return &dto.StatsReportResponse{List: list, TotalMetrics: total}, nil
+}
+
+// ── 内部聚合方法 ────────────────────────────────────────────────
+
 type aggregateRow struct {
 	Spend       float64
 	Clicks      int64
@@ -240,4 +351,3 @@ func applyDateFilter(q *gorm.DB, dateFrom, dateTo string) *gorm.DB {
 	}
 	return q
 }
-

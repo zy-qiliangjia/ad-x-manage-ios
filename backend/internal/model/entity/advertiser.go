@@ -12,6 +12,7 @@ type Advertiser struct {
 	AdvertiserName string     `gorm:"size:255;not null;default:''"                            json:"advertiser_name"`
 	Currency       string     `gorm:"size:10;default:null"                                    json:"currency"`
 	Timezone       string     `gorm:"size:50;default:null"                                    json:"timezone"`
+	DailyBudget    *float64   `gorm:"type:decimal(18,2);default:null"                         json:"daily_budget"`
 	Status         uint8      `gorm:"not null;default:1"                                      json:"status"`
 	SyncedAt       *time.Time `gorm:"default:null"                                            json:"synced_at"`
 	CreatedAt      time.Time  `                                                               json:"created_at"`

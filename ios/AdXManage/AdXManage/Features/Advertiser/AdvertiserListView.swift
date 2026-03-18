@@ -28,7 +28,7 @@ struct AdvertiserListView: View {
             .searchable(text: $vm.searchText,
                         placement: .navigationBarDrawer(displayMode: .always),
                         prompt: "搜索账号名称或 ID")
-            .safeAreaInset(edge: .top) { platformPicker }
+            .safeAreaInset(edge: .top) { filterBar }
             .alert("请求失败", isPresented: Binding(
                 get: { vm.error != nil },
                 set: { if !$0 { vm.error = nil } }
@@ -67,6 +67,34 @@ struct AdvertiserListView: View {
         .task { await vm.load() }
     }
 
+    // MARK: - 筛选条（平台 + 日期）
+
+    private var filterBar: some View {
+        VStack(spacing: 0) {
+            // 平台筛选
+            Picker("平台", selection: $vm.platformFilter) {
+                Text("全部").tag(Platform?.none)
+                ForEach(Platform.allCases) { p in
+                    Text(p.displayName).tag(Platform?.some(p))
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, AppTheme.Spacing.lg)
+            .padding(.vertical, AppTheme.Spacing.sm)
+
+            // 日期筛选
+            DateRangePickerView(
+                startDate: $vm.selectedStartDate,
+                endDate:   $vm.selectedEndDate
+            ) {
+                vm.onDateRangeChanged()
+            }
+
+            Divider()
+        }
+        .background(.bar)
+    }
+
     // MARK: - Scroll Content
 
     private var scrollContent: some View {
@@ -80,7 +108,9 @@ struct AdvertiserListView: View {
                         NavigationLink(destination: AdvertiserDetailView(advertiser: adv)) {
                             AdvertiserCardView(
                                 advertiser: adv,
-                                isSyncing: vm.syncingID == adv.id
+                                isSyncing: vm.syncingID == adv.id,
+                                metrics: vm.reportMetrics[adv.advertiserID],
+                                isLoadingMetrics: vm.isLoadingMetrics
                             )
                         }
                         .buttonStyle(.plain)
@@ -96,7 +126,6 @@ struct AdvertiserListView: View {
                                 Label("手动同步", systemImage: "arrow.triangle.2.circlepath")
                             }
                         }
-                        // 保留左滑/右滑（包装在 List 外时用 swipeActions 需要 List，改用 onLongPress 替代）
                         .onAppear {
                             if adv.id == vm.items.last?.id {
                                 Task { await vm.loadMore() }
@@ -106,6 +135,15 @@ struct AdvertiserListView: View {
 
                     if vm.isLoadingMore {
                         ProgressView().padding()
+                    }
+
+                    // 汇总行
+                    if !vm.items.isEmpty {
+                        MetricsSummaryRow(
+                            total: vm.totalMetrics,
+                            isLoading: vm.isLoadingMetrics
+                        )
+                        .padding(.horizontal, AppTheme.Spacing.xl)
                     }
                 }
 
@@ -142,21 +180,6 @@ struct AdvertiserListView: View {
             )
         }
         .buttonStyle(.plain)
-    }
-
-    // MARK: - 平台筛选条
-
-    private var platformPicker: some View {
-        Picker("平台", selection: $vm.platformFilter) {
-            Text("全部").tag(Platform?.none)
-            ForEach(Platform.allCases) { p in
-                Text(p.displayName).tag(Platform?.some(p))
-            }
-        }
-        .pickerStyle(.segmented)
-        .padding(.horizontal, AppTheme.Spacing.lg)
-        .padding(.vertical, AppTheme.Spacing.sm)
-        .background(.bar)
     }
 
     // MARK: - 空状态
@@ -197,12 +220,13 @@ struct AdvertiserListView: View {
 struct AdvertiserCardView: View {
     let advertiser: AdvertiserListItem
     let isSyncing: Bool
+    let metrics: AdvertiserReportMetrics?
+    let isLoadingMetrics: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             // 顶部：头像 + 账号信息
             HStack(spacing: AppTheme.Spacing.md) {
-                // TikTok 头像
                 platformAvatar
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -236,18 +260,22 @@ struct AdvertiserCardView: View {
             }
             .padding(AppTheme.Spacing.lg)
 
-            // 底部：三列数据行
+            // 指标网格
             Divider()
                 .padding(.horizontal, AppTheme.Spacing.lg)
 
-            HStack(spacing: 0) {
-                metricCell(label: "本周消耗", value: "--")
-                Divider().frame(height: 32)
-                metricCell(label: "推广系列", value: "--")
-                Divider().frame(height: 32)
-                metricCell(label: "货币", value: advertiser.currency)
+            if isLoadingMetrics && metrics == nil {
+                MetricsSkeletonGrid()
+                    .padding(.vertical, AppTheme.Spacing.sm)
+                    .padding(.horizontal, AppTheme.Spacing.lg)
+            } else {
+                AdvertiserMetricsGrid(
+                    metrics: metrics,
+                    currency: advertiser.currency
+                )
+                .padding(.vertical, AppTheme.Spacing.sm)
+                .padding(.horizontal, AppTheme.Spacing.lg)
             }
-            .padding(.vertical, AppTheme.Spacing.sm)
         }
         .background(AppTheme.Colors.surface)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xl))
@@ -270,20 +298,114 @@ struct AdvertiserCardView: View {
                 .foregroundStyle(.white)
         }
     }
+}
+
+// MARK: - AdvertiserMetricsGrid (2行×3列)
+
+struct AdvertiserMetricsGrid: View {
+    let metrics: AdvertiserReportMetrics?
+    let currency: String
+
+    private var cur: String { metrics?.currency.isEmpty == false ? (metrics?.currency ?? currency) : currency }
+
+    var body: some View {
+        let m = metrics
+        VStack(spacing: 6) {
+            HStack(spacing: 0) {
+                metricCell(label: "消耗", value: m.map { formatMoney($0.spend, currency: cur) } ?? "—")
+                metricCell(label: "点击", value: m.map { formatCount($0.clicks) } ?? "—")
+                metricCell(label: "展示", value: m.map { formatCount($0.impressions) } ?? "—")
+            }
+            HStack(spacing: 0) {
+                metricCell(label: "转化", value: m.map { formatCount($0.conversion) } ?? "—")
+                metricCell(label: "CPA", value: m.map { formatMoney($0.cpa, currency: "") } ?? "—")
+                metricCell(label: "日预算", value: m.map { formatMoney($0.dailyBudget, currency: cur) } ?? "—")
+            }
+        }
+    }
 
     private func metricCell(label: String, value: String) -> some View {
-        VStack(spacing: 3) {
+        VStack(spacing: 2) {
             Text(value)
-                .font(.system(size: 14, weight: .bold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(AppTheme.Colors.textPrimary)
                 .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .minimumScaleFactor(0.8)
             Text(label)
                 .font(.system(size: 10))
                 .foregroundStyle(AppTheme.Colors.textSecondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, AppTheme.Spacing.xs)
+    }
+
+    private func formatMoney(_ value: Double, currency: String) -> String {
+        let prefix = currency.isEmpty ? "" : "\(currency) "
+        return "\(prefix)\(String(format: "%.2f", value))"
+    }
+
+    private func formatCount(_ value: Int) -> String {
+        if value >= 10_000 {
+            return String(format: "%.1fw", Double(value) / 10_000)
+        }
+        return "\(value)"
+    }
+}
+
+// MARK: - MetricsSkeletonGrid
+
+struct MetricsSkeletonGrid: View {
+    @State private var shimmer = false
+
+    var body: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                ForEach(0..<3) { _ in skeletonBlock() }
+            }
+            HStack(spacing: 8) {
+                ForEach(0..<3) { _ in skeletonBlock() }
+            }
+        }
+        .onAppear { shimmer = true }
+    }
+
+    private func skeletonBlock() -> some View {
+        RoundedRectangle(cornerRadius: 4)
+            .fill(AppTheme.Colors.border.opacity(shimmer ? 0.4 : 0.7))
+            .frame(maxWidth: .infinity)
+            .frame(height: 28)
+            .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: shimmer)
+    }
+}
+
+// MARK: - MetricsSummaryRow
+
+struct MetricsSummaryRow: View {
+    let total: AdvertiserReportMetrics?
+    let isLoading: Bool
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("合计")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(AppTheme.Colors.textSecondary)
+                Spacer()
+            }
+            .padding(.bottom, 6)
+
+            if isLoading && total == nil {
+                MetricsSkeletonGrid()
+            } else {
+                AdvertiserMetricsGrid(metrics: total, currency: "")
+            }
+        }
+        .padding(AppTheme.Spacing.md)
+        .background(AppTheme.Colors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xl))
+        .overlay(
+            RoundedRectangle(cornerRadius: AppTheme.Radius.xl)
+                .stroke(AppTheme.Colors.border, lineWidth: 1)
+        )
     }
 }
 

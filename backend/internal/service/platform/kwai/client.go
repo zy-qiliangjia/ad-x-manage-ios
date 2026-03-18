@@ -450,6 +450,20 @@ func (c *Client) GetReportStats(_ string, _ []string, _, _ string) (*platform.Re
 	return &platform.ReportStats{}, nil
 }
 
+// GetAdvertiserReport 快手逐广告主报表（待实现，返回零值占位）。
+func (c *Client) GetAdvertiserReport(_ string, advertiserIDs []string, _, _ string) ([]*platform.AdvertiserReportItem, error) {
+	items := make([]*platform.AdvertiserReportItem, 0, len(advertiserIDs))
+	for _, id := range advertiserIDs {
+		items = append(items, &platform.AdvertiserReportItem{AdvertiserID: id})
+	}
+	return items, nil
+}
+
+// GetAdvertiserDailyBudget 快手广告主日预算（待实现，返回空 map）。
+func (c *Client) GetAdvertiserDailyBudget(_ string, _ []string) (map[string]float64, error) {
+	return map[string]float64{}, nil
+}
+
 func (c *Client) do(req *http.Request, out any) error {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

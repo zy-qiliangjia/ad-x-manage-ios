@@ -17,8 +17,10 @@ type Repository interface {
 	FindAllActiveByUserID(ctx context.Context, userID uint64) ([]*entity.Advertiser, error)
 	FindByID(ctx context.Context, id uint64) (*entity.Advertiser, error)
 	FindByPlatformID(ctx context.Context, platform, advertiserID string) (*entity.Advertiser, error)
+	FindByUserPlatformIDs(ctx context.Context, userID uint64, platform string, advertiserIDs []string) ([]*entity.Advertiser, error)
 	UpdateSyncedAt(ctx context.Context, id uint64, t time.Time) error
 	UpdateInfo(ctx context.Context, id uint64, currency, timezone string) error
+	UpdateDailyBudget(ctx context.Context, id uint64, budget float64) error
 	RevokeByTokenID(ctx context.Context, tokenID uint64) error
 }
 
@@ -39,7 +41,7 @@ func (r *repo) Upsert(ctx context.Context, advertisers []*entity.Advertiser) err
 		Clauses(clause.OnConflict{
 			Columns: []clause.Column{{Name: "platform"}, {Name: "advertiser_id"}},
 			DoUpdates: clause.AssignmentColumns([]string{
-				"token_id", "advertiser_name", "currency", "timezone", "status", "synced_at", "updated_at",
+				"token_id", "advertiser_name", "currency", "timezone", "daily_budget", "status", "synced_at", "updated_at",
 			}),
 		}).
 		CreateInBatches(advertisers, 100).Error
@@ -113,6 +115,22 @@ func (r *repo) UpdateInfo(ctx context.Context, id uint64, currency, timezone str
 			"currency": currency,
 			"timezone": timezone,
 		}).Error
+}
+
+// FindByUserPlatformIDs 按 user_id + platform + 平台广告主 ID 列表批量查询。
+func (r *repo) FindByUserPlatformIDs(ctx context.Context, userID uint64, platform string, advertiserIDs []string) ([]*entity.Advertiser, error) {
+	var list []*entity.Advertiser
+	err := r.db.WithContext(ctx).
+		Where("user_id = ? AND platform = ? AND advertiser_id IN ? AND status = 1", userID, platform, advertiserIDs).
+		Find(&list).Error
+	return list, err
+}
+
+func (r *repo) UpdateDailyBudget(ctx context.Context, id uint64, budget float64) error {
+	return r.db.WithContext(ctx).
+		Model(&entity.Advertiser{}).
+		Where("id = ?", id).
+		Update("daily_budget", budget).Error
 }
 
 // RevokeByTokenID 解绑时将该 token 下所有广告主标记为停用。

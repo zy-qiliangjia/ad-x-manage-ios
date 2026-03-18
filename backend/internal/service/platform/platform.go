@@ -42,6 +42,15 @@ type Client interface {
 	// GetReportStats 拉取指定广告主列表在给定日期范围内的汇总指标。
 	// advertiserIDs 为空时直接返回零值。分批调用由实现层负责。
 	GetReportStats(accessToken string, advertiserIDs []string, startDate, endDate string) (*ReportStats, error)
+
+	// GetAdvertiserReport 拉取逐广告主报表明细（per-advertiser）。
+	// 内部按 ≤5 个/批切分，优先读 Redis 缓存，未命中时调用平台 API 并缓存。
+	// 请求列表中无数据的广告主以零值占位返回。
+	GetAdvertiserReport(accessToken string, advertiserIDs []string, startDate, endDate string) ([]*AdvertiserReportItem, error)
+
+	// GetAdvertiserDailyBudget 查询广告主账户级日预算。
+	// 返回 map[platform_advertiser_id]daily_budget（float64）。
+	GetAdvertiserDailyBudget(accessToken string, advertiserIDs []string) (map[string]float64, error)
 }
 
 // ── 共享数据结构 ───────────────────────────────────────────────
@@ -104,5 +113,25 @@ type ReportStats struct {
 	Clicks      int64
 	Impressions int64
 	Conversion  int64
+}
+
+// ReportResult 单广告主报表汇总，字段均为 float64 便于逐行累加。
+type ReportResult struct {
+	Spend       float64
+	Impressions float64
+	Clicks      float64
+	Conversions float64
+}
+
+// AdvertiserReportItem 单广告主报表明细指标。
+type AdvertiserReportItem struct {
+	AdvertiserID      string
+	Spend             float64
+	Clicks            int64
+	Impressions       int64
+	Conversion        int64
+	CostPerConversion float64
+	CPA               float64 // skan_click_time_cost_per_conversion
+	Currency          string
 }
 

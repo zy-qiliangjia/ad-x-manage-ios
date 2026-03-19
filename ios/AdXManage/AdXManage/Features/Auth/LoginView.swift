@@ -6,6 +6,7 @@ struct LoginView: View {
 
     @EnvironmentObject private var appState: AppState
     @StateObject private var vm = LoginViewModel()
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
@@ -72,20 +73,23 @@ struct LoginView: View {
                     }
                     .padding(.horizontal, 24)
 
-                    // ── 注册入口 ───────────────────────────
-                    Button("没有账号？立即注册") {
-                        vm.errorMessage = nil
-                        vm.showRegister = true
-                    }
-                    .font(.footnote)
-
                     Spacer()
                 }
             }
             .navigationBarHidden(true)
-            .sheet(isPresented: $vm.showRegister) {
-                RegisterView(vm: vm)
-                    .environmentObject(appState)
+            .overlay(alignment: .topLeading) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .padding(12)
+                        .background(Color(UIColor.systemGray6))
+                        .clipShape(Circle())
+                }
+                .padding(.top, 16)
+                .padding(.leading, 16)
             }
         }
     }

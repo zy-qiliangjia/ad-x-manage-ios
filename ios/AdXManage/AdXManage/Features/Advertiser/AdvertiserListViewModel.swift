@@ -49,6 +49,14 @@ final class AdvertiserListViewModel: ObservableObject {
     var startDateString: String { Self.dateFormatter.string(from: selectedStartDate) }
     var endDateString: String   { Self.dateFormatter.string(from: selectedEndDate) }
 
+    // MARK: - 体验模式：加载示例数据
+
+    func loadDemo() {
+        items   = DemoData.advertisers
+        hasMore = false
+        error   = nil
+    }
+
     // MARK: - 初始加载
 
     func load() async {

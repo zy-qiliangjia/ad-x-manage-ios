@@ -6,11 +6,17 @@ import (
 )
 
 type Config struct {
-	App    AppConfig
-	DB     DBConfig
-	Redis  RedisConfig
-	TikTok TikTokConfig
-	Kwai   KwaiConfig
+	App     AppConfig
+	DB      DBConfig
+	Redis   RedisConfig
+	TikTok  TikTokConfig
+	Kwai    KwaiConfig
+	Contact ContactConfig
+}
+
+type ContactConfig struct {
+	WechatURL   string `envconfig:"CONTACT_WECHAT_URL"   default:""`
+	TelegramURL string `envconfig:"CONTACT_TELEGRAM_URL" default:""`
 }
 
 type AppConfig struct {

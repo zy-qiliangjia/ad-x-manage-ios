@@ -4,6 +4,7 @@ import SwiftUI
 
 struct AdvertiserListView: View {
 
+    @EnvironmentObject private var appState: AppState
     @StateObject private var vm       = AdvertiserListViewModel()
     @StateObject private var oauthVM  = OAuthViewModel()
 
@@ -64,7 +65,17 @@ struct AdvertiserListView: View {
                 BalanceSheetView(advertiser: adv)
             }
         }
-        .task { await vm.load() }
+        .task {
+            if appState.isLoggedIn {
+                await vm.load()
+            } else {
+                vm.loadDemo()
+            }
+        }
+        // 登录后切换为真实数据
+        .onChange(of: appState.isLoggedIn) { _, isLoggedIn in
+            if isLoggedIn { Task { await vm.load() } }
+        }
     }
 
     // MARK: - 筛选条（平台 + 日期）

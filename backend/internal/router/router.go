@@ -12,6 +12,7 @@ import (
 	advertiserhandler "ad-x-manage/backend/internal/handler/advertiser"
 	authhandler "ad-x-manage/backend/internal/handler/auth"
 	campaignhandler "ad-x-manage/backend/internal/handler/campaign"
+	confighandler "ad-x-manage/backend/internal/handler/config"
 	"ad-x-manage/backend/internal/handler/health"
 	oauthhandler "ad-x-manage/backend/internal/handler/oauth"
 	operationloghandler "ad-x-manage/backend/internal/handler/operationlog"
@@ -109,6 +110,9 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 	v1 := r.Group("/api/v1")
 
 	// ── 公开路由 ──────────────────────────────────────────
+	cfgHandler := confighandler.New(cfg)
+	v1.GET("/config", cfgHandler.GetConfig)
+
 	authGroup := v1.Group("/auth")
 	{
 		authGroup.POST("/register", authHandler.Register)

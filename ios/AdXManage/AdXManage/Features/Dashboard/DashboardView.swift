@@ -50,6 +50,7 @@ final class DashboardViewModel: ObservableObject {
 
 struct DashboardView: View {
 
+    @EnvironmentObject private var appState: AppState
     @StateObject private var vm = DashboardViewModel()
     @State private var showDatePicker = false
 
@@ -81,7 +82,7 @@ struct DashboardView: View {
         }
         .background(AppTheme.Colors.background)
         .ignoresSafeArea(edges: .top)
-        .refreshable { await vm.load() }
+        .refreshable { if appState.isLoggedIn { await vm.load() } }
         .alert("加载失败", isPresented: Binding(
             get: { vm.error != nil },
             set: { if !$0 { vm.error = nil } }
@@ -90,7 +91,18 @@ struct DashboardView: View {
         } message: {
             Text(vm.error ?? "")
         }
-        .task { await vm.load() }
+        .task {
+            if appState.isLoggedIn {
+                await vm.load()
+            } else {
+                vm.overview      = DemoData.overview
+                vm.lastFetchedAt = Date()
+            }
+        }
+        // 登录后切换为真实数据
+        .onChange(of: appState.isLoggedIn) { _, isLoggedIn in
+            if isLoggedIn { Task { await vm.load() } }
+        }
         .sheet(isPresented: $showDatePicker) {
             DashboardDatePickerSheet(dateFilter: $vm.dateFilter)
         }

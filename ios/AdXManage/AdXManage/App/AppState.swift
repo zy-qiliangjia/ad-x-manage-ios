@@ -8,6 +8,7 @@ final class AppState: ObservableObject {
 
     @Published var isLoggedIn: Bool  = false
     @Published var userEmail: String = ""
+    @Published var contactConfig: AppConfig? = nil
 
     init() {
         isLoggedIn = KeychainManager.shared.isLoggedIn
@@ -17,6 +18,9 @@ final class AppState: ObservableObject {
         APIClient.shared.onUnauthorized = { [weak self] in
             Task { @MainActor in self?.logout() }
         }
+
+        // 启动时拉取服务端配置（客服联系方式等）
+        Task { await fetchConfig() }
 
         // 启动时检查 Token 是否即将过期，自动续签
         if isLoggedIn {
@@ -58,6 +62,16 @@ final class AppState: ObservableObject {
         } catch {
             // 刷新失败（token 已过期），跳回登录页
             logout()
+        }
+    }
+
+    // MARK: - 拉取服务端配置
+
+    private func fetchConfig() async {
+        do {
+            contactConfig = try await APIClient.shared.request(.appConfig)
+        } catch {
+            // 网络不可达时静默失败，弹窗内联系方式按钮不可点击
         }
     }
 }

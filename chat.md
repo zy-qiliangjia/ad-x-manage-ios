@@ -2286,3 +2286,16 @@ https://business-api.tiktok.com/open_api/v1.3/report/integrated/get?page=1&data_
 }
 ```
 
+---
+
+
+# 现在需要对ios端登陆注册流程进行调整
+- 去掉注册入口
+- 打开app,默认显示体验模式，样式和当前
+- 点击任意位置 弹出一个弹窗，
+    - 企业微信客服
+    - Telegram 客服
+    - 下方显示 点此登陆
+- 两个联系地址通过 服务端下发
+- 原型见 prd/AdPilot-demo_prod_v1.html
+- 体验数据和随便构建一部分

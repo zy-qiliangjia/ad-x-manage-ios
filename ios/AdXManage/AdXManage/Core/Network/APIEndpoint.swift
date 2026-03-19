@@ -51,6 +51,9 @@ enum APIEndpoint {
     case statsCampaignReport
     case statsAdReport
 
+    // ── 应用配置（公开接口，无需登录）───────────────────────
+    case appConfig
+
     // MARK: - Path
 
     var path: String {
@@ -93,6 +96,8 @@ enum APIEndpoint {
         case .statsAdGroupReport:                 return "/stats/adgroup-report"
         case .statsCampaignReport:                return "/stats/campaign-report"
         case .statsAdReport:                      return "/stats/ad-report"
+
+        case .appConfig:                          return "/config"
         }
     }
 

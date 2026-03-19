@@ -673,11 +673,31 @@ https://business-api.tiktok.com/open_api/v1.3/report/integrated/get?page=1&data_
 ```
 
 
-# ios端 点击下方tab 切换到 广告组系列
-- 每行广告组去掉日预算，操作暂停按钮放到cpa 后面，不然显得每行数据格式不齐
-
-
+# ios端 点击下方tab 切换到 广告组系列, 每行广告组去掉日预算 相关指标
 
 # ios端 下方tab 切换到广告，不通过点击账号列表进入后，直接点击日期下方的广告组相关布局需要和从账号点进去的保持一致
 
 # ios端 下方tab 切换到广告，不通过点击账号列表进入后，直接点击日期下方的广告组相关布局需要和从账号点进去的保持一致
+
+# ios端 下方tab 切换到广告，默认展示的账号列表去掉调整预算，暂停
+
+
+# 操作广告组 开启或暂停 需要调整
+背景： 当前操作报错，错误提示：
+⬅️ 502 http://localhost:8080/api/v1/adgroups/261/status
+   Body: {"code":1003,"message":"修改状态失败: platform update adgroup status: tiktok update adgroup status error 40002: operation_status: Missing data for required field."}
+参考文档：https://business-api.tiktok.com/portal/docs?id=1739591716326402
+
+
+
+# 分析下当前系统包含的场景如果 使用不同的邮箱登陆，授权同一个第三方账号，会导致数据无法查看
+
+
+
+
+# ios端 点击下方tab 切换到 广告组->顶部推广系列，需要调整布局同广告组布局一样，只是维度不一样
+- 每个广告组显示消耗，点击，展示，转化，cpa
+- 包含暂停投放,调整预算操作
+- 通过调用接口获取 相关数据 -进行本地缓存 30分钟
+- 调用示例： tiktok 平台
+- 调用示例

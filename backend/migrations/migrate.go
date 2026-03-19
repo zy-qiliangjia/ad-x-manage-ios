@@ -56,6 +56,15 @@ func main() {
 	// 清理历史重复索引（幂等：索引不存在时忽略错误）
 	db.Exec(`ALTER TABLE platform_tokens DROP INDEX uk_user_platform_openid`)
 
+	// 修复多用户授权同一第三方账号的 bug：
+	// 将各表的 unique key 从平台维度改为用户+平台维度，
+	// 使不同用户授权相同广告主/系列/广告组/广告时各自拥有独立记录。
+	fmt.Println("dropping old platform-scoped unique indexes...")
+	db.Exec(`ALTER TABLE advertisers DROP INDEX uk_platform_advertiser`)
+	db.Exec(`ALTER TABLE campaigns DROP INDEX uk_platform_campaign`)
+	db.Exec(`ALTER TABLE ad_groups DROP INDEX uk_platform_adgroup`)
+	db.Exec(`ALTER TABLE ads DROP INDEX uk_platform_ad`)
+
 	fmt.Println("running migrations...")
 	if err := db.AutoMigrate(models...); err != nil {
 		fmt.Fprintf(os.Stderr, "migrate error: %v\n", err)

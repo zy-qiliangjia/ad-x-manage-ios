@@ -32,14 +32,14 @@ func New(db *gorm.DB) Repository {
 	return &repo{db: db}
 }
 
-// Upsert 批量插入或更新广告主（以 platform + advertiser_id 为唯一键）。
+// Upsert 批量插入或更新广告主（以 user_id + platform + advertiser_id 为唯一键）。
 func (r *repo) Upsert(ctx context.Context, advertisers []*entity.Advertiser) error {
 	if len(advertisers) == 0 {
 		return nil
 	}
 	return r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{
-			Columns: []clause.Column{{Name: "platform"}, {Name: "advertiser_id"}},
+			Columns: []clause.Column{{Name: "user_id"}, {Name: "platform"}, {Name: "advertiser_id"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"token_id", "advertiser_name", "currency", "timezone", "daily_budget", "status", "synced_at", "updated_at",
 			}),

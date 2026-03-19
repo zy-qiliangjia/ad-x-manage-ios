@@ -24,14 +24,14 @@ type repo struct{ db *gorm.DB }
 
 func New(db *gorm.DB) Repository { return &repo{db: db} }
 
-// Upsert 批量插入或更新推广系列（以 platform + campaign_id 为唯一键）。
+// Upsert 批量插入或更新推广系列（以 advertiser_id + campaign_id 为唯一键）。
 func (r *repo) Upsert(ctx context.Context, campaigns []*entity.Campaign) error {
 	if len(campaigns) == 0 {
 		return nil
 	}
 	return r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{
-			Columns: []clause.Column{{Name: "platform"}, {Name: "campaign_id"}},
+			Columns: []clause.Column{{Name: "advertiser_id"}, {Name: "campaign_id"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"campaign_name", "status", "budget_mode", "budget", "spend", "objective", "updated_at",
 			}),

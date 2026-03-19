@@ -21,14 +21,14 @@ type repo struct{ db *gorm.DB }
 
 func New(db *gorm.DB) Repository { return &repo{db: db} }
 
-// Upsert 批量插入或更新广告（以 platform + ad_id 为唯一键）。
+// Upsert 批量插入或更新广告（以 advertiser_id + ad_id 为唯一键）。
 func (r *repo) Upsert(ctx context.Context, ads []*entity.Ad) error {
 	if len(ads) == 0 {
 		return nil
 	}
 	return r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{
-			Columns: []clause.Column{{Name: "platform"}, {Name: "ad_id"}},
+			Columns: []clause.Column{{Name: "advertiser_id"}, {Name: "ad_id"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"ad_name", "adgroup_id", "status", "creative_type", "updated_at",
 			}),

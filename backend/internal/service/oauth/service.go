@@ -15,6 +15,7 @@ import (
 	"ad-x-manage/backend/internal/model/entity"
 	advertiserrepo "ad-x-manage/backend/internal/repository/advertiser"
 	tokenrepo "ad-x-manage/backend/internal/repository/token"
+	userrepo "ad-x-manage/backend/internal/repository/user"
 	"ad-x-manage/backend/internal/service/platform"
 	syncsvc "ad-x-manage/backend/internal/service/sync"
 )
@@ -40,6 +41,7 @@ type service struct {
 	clients   map[string]platform.Client
 	tokenRepo tokenrepo.Repository
 	advRepo   advertiserrepo.Repository
+	userRepo  userrepo.Repository
 	syncSvc   syncsvc.Service
 	rdb       *redis.Client
 	log       *zap.Logger
@@ -49,6 +51,7 @@ func New(
 	clients map[string]platform.Client,
 	tokenRepo tokenrepo.Repository,
 	advRepo advertiserrepo.Repository,
+	userRepo userrepo.Repository,
 	syncSvc syncsvc.Service,
 	rdb *redis.Client,
 	log *zap.Logger,
@@ -57,6 +60,7 @@ func New(
 		clients:   clients,
 		tokenRepo: tokenRepo,
 		advRepo:   advRepo,
+		userRepo:  userRepo,
 		syncSvc:   syncSvc,
 		rdb:       rdb,
 		log:       log,
@@ -131,10 +135,28 @@ func (s *service) Callback(ctx context.Context, userID uint64, platformName, cod
 		}
 	}
 
-	// 4. 拉取广告主并同步入库
+	// 4. 拉取广告主并同步入库（受额度限制）
 	advertisers, err := client.GetAdvertisers(tokenResult.AccessToken)
 	if err != nil {
 		return nil, fmt.Errorf("get advertisers: %w", err)
+	}
+
+	// 计算剩余可入库额度
+	user, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil || user == nil {
+		return nil, fmt.Errorf("load user for quota check: %w", err)
+	}
+	currentCount, err := s.advRepo.CountActiveByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("count advertisers: %w", err)
+	}
+	remaining := int64(user.Quota) - currentCount
+	if remaining < 0 {
+		remaining = 0
+	}
+	// 仅保留未超额的广告主（已存在的 UPSERT 不受影响，只限制新增）
+	if int64(len(advertisers)) > remaining {
+		advertisers = advertisers[:remaining]
 	}
 
 	now := time.Now()

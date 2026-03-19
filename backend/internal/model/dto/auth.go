@@ -5,9 +5,10 @@ import "time"
 // ── 注册 ──────────────────────────────────────────────────────
 
 type RegisterRequest struct {
-	Email    string `json:"email"    binding:"required,email"`
-	Password string `json:"password" binding:"required,min=8,max=72"`
-	Name     string `json:"name"     binding:"required,min=1,max=100"`
+	Email      string `json:"email"       binding:"required,email"`
+	Password   string `json:"password"    binding:"required,min=8,max=72"`
+	Name       string `json:"name"        binding:"required,min=1,max=100"`
+	InviteCode string `json:"invite_code"` // 可选：填写邀请码，双方各得 +5 额度
 }
 
 // ── 登录 ──────────────────────────────────────────────────────

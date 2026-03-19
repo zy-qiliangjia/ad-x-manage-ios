@@ -51,6 +51,10 @@ enum APIEndpoint {
     case statsCampaignReport
     case statsAdReport
 
+    // ── 邀请 & 额度 ────────────────────────────────────────
+    case userInvite
+    case userQuota
+
     // ── 应用配置（公开接口，无需登录）───────────────────────
     case appConfig
 
@@ -96,6 +100,9 @@ enum APIEndpoint {
         case .statsAdGroupReport:                 return "/stats/adgroup-report"
         case .statsCampaignReport:                return "/stats/campaign-report"
         case .statsAdReport:                      return "/stats/ad-report"
+
+        case .userInvite:                         return "/users/invite"
+        case .userQuota:                          return "/users/quota"
 
         case .appConfig:                          return "/config"
         }

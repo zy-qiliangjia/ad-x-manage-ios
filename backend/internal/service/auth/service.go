@@ -2,6 +2,7 @@ package authsvc
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"ad-x-manage/backend/internal/model/entity"
 	"ad-x-manage/backend/internal/pkg/cache"
 	"ad-x-manage/backend/internal/pkg/jwtutil"
+	inviterepo "ad-x-manage/backend/internal/repository/invite"
 	userrepo "ad-x-manage/backend/internal/repository/user"
 )
 
@@ -32,19 +34,22 @@ type Service interface {
 
 type service struct {
 	userRepo  userrepo.Repository
+	invRepo   inviterepo.Repository
 	rdb       *redis.Client
 	jwtSecret string
 }
 
-func New(userRepo userrepo.Repository, rdb *redis.Client, jwtSecret string) Service {
+func New(userRepo userrepo.Repository, invRepo inviterepo.Repository, rdb *redis.Client, jwtSecret string) Service {
 	return &service{
 		userRepo:  userRepo,
+		invRepo:   invRepo,
 		rdb:       rdb,
 		jwtSecret: jwtSecret,
 	}
 }
 
 // Register 注册新用户（邮箱唯一校验 + bcrypt 密码哈希）。
+// 若提供有效邀请码，双方各获得 +5 账号额度。
 func (s *service) Register(ctx context.Context, req *dto.RegisterRequest) error {
 	existing, err := s.userRepo.FindByEmail(ctx, req.Email)
 	if err != nil {
@@ -54,16 +59,67 @@ func (s *service) Register(ctx context.Context, req *dto.RegisterRequest) error 
 		return ErrEmailAlreadyExists
 	}
 
+	// 校验邀请码（可选）
+	var inviter *entity.User
+	if req.InviteCode != "" {
+		inviter, err = s.userRepo.FindByInviteCode(ctx, req.InviteCode)
+		if err != nil {
+			return err
+		}
+		// 邀请码不存在时忽略，不影响注册流程
+	}
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return err
 	}
 
-	return s.userRepo.Create(ctx, &entity.User{
+	inviteCode, err := generateInviteCode()
+	if err != nil {
+		return err
+	}
+
+	quota := 5
+	if inviter != nil {
+		quota = 10 // 被邀请者额外获得 +5
+	}
+
+	newUser := &entity.User{
 		Email:        req.Email,
 		PasswordHash: string(hash),
 		Name:         req.Name,
-	})
+		InviteCode:   inviteCode,
+		Quota:        quota,
+	}
+	if err := s.userRepo.Create(ctx, newUser); err != nil {
+		return err
+	}
+
+	// 邀请人 +5 额度，并写入邀请记录
+	if inviter != nil {
+		_ = s.userRepo.AddQuota(ctx, inviter.ID, 5)
+		_ = s.invRepo.CreateRecord(ctx, &entity.InviteRecord{
+			InviterID: inviter.ID,
+			InviteeID: newUser.ID,
+		})
+	}
+
+	return nil
+}
+
+// generateInviteCode 生成格式为 AP-XXXXXX 的邀请码（排除易混淆字符 O/0/I/1）。
+func generateInviteCode() (string, error) {
+	const charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // 排除 O、I；排除 0、1
+	const codeLen = 6
+	b := make([]byte, codeLen)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	result := make([]byte, codeLen)
+	for i, v := range b {
+		result[i] = charset[int(v)%len(charset)]
+	}
+	return "AP-" + string(result), nil
 }
 
 // Login 邮箱密码登录，验证通过后签发 JWT。

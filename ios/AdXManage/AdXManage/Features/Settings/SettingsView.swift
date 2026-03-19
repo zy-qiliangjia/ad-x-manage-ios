@@ -5,10 +5,12 @@ import SwiftUI
 struct SettingsView: View {
 
     @EnvironmentObject private var appState: AppState
-    @State private var showPlatformSelection = false
-    @State private var showLogoutAlert       = false
+    @State private var showPlatformSelection  = false
+    @State private var showLogoutAlert        = false
     @State private var pendingPlatform: Platform? = nil
-    @StateObject private var oauthVM = OAuthViewModel()
+    @StateObject private var oauthVM          = OAuthViewModel()
+    @State private var navToAccountManage     = false
+    @State private var navToInvite            = false
 
     var body: some View {
         NavigationStack {
@@ -24,8 +26,16 @@ struct SettingsView: View {
                                 icon: "person.crop.rectangle.stack.fill",
                                 iconBg: AppTheme.Colors.primary,
                                 title: "广告账号管理",
-                                subtitle: "查看和管理已绑定的广告账号",
-                                action: nil,
+                                subtitle: "查看额度、管理已绑定的广告账号",
+                                action: { navToAccountManage = true },
+                                isDestructive: false
+                            ),
+                            SettingsRow(
+                                icon: "person.badge.plus",
+                                iconBg: Color(red: 0.20, green: 0.78, blue: 0.47),
+                                title: "邀请好友",
+                                subtitle: "每邀请 1 人，双方各获得 +5 账号额度",
+                                action: { navToInvite = true },
                                 isDestructive: false
                             )
                         ])
@@ -79,6 +89,12 @@ struct SettingsView: View {
             .background(AppTheme.Colors.background)
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(isPresented: $navToAccountManage) {
+                AdvertiserAccountManageView()
+            }
+            .navigationDestination(isPresented: $navToInvite) {
+                InviteFriendsView()
+            }
             .sheet(isPresented: $showPlatformSelection, onDismiss: {
                 if let platform = pendingPlatform {
                     pendingPlatform = nil

@@ -14,6 +14,7 @@ import (
 	campaignhandler "ad-x-manage/backend/internal/handler/campaign"
 	confighandler "ad-x-manage/backend/internal/handler/config"
 	"ad-x-manage/backend/internal/handler/health"
+	invitehandler "ad-x-manage/backend/internal/handler/invite"
 	oauthhandler "ad-x-manage/backend/internal/handler/oauth"
 	operationloghandler "ad-x-manage/backend/internal/handler/operationlog"
 	statshandler "ad-x-manage/backend/internal/handler/stats"
@@ -22,6 +23,7 @@ import (
 	adgrouprepo "ad-x-manage/backend/internal/repository/adgroup"
 	advertiserrepo "ad-x-manage/backend/internal/repository/advertiser"
 	campaignrepo "ad-x-manage/backend/internal/repository/campaign"
+	inviterepo "ad-x-manage/backend/internal/repository/invite"
 	operationlogrepo "ad-x-manage/backend/internal/repository/operationlog"
 	tokenrepo "ad-x-manage/backend/internal/repository/token"
 	userrepo "ad-x-manage/backend/internal/repository/user"
@@ -30,6 +32,7 @@ import (
 	advertisersvc "ad-x-manage/backend/internal/service/advertiser"
 	authsvc "ad-x-manage/backend/internal/service/auth"
 	campaignsvc "ad-x-manage/backend/internal/service/campaign"
+	invitesvc "ad-x-manage/backend/internal/service/invite"
 	oauthsvc "ad-x-manage/backend/internal/service/oauth"
 	operationlogsvc "ad-x-manage/backend/internal/service/operationlog"
 	"ad-x-manage/backend/internal/service/platform"
@@ -60,16 +63,17 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 	groupRepo := adgrouprepo.New(db)
 	adRepo := adrepo.New(db)
 	logRepo := operationlogrepo.New(db)
+	invRepo := inviterepo.New(db)
 
 	// ── Services ──────────────────────────────────────────
 	// B4: 数据同步（被 OAuth 和 Advertiser 服务共用）
 	syncService := syncsvc.New(platformClients, tokenRepo, advRepo, campRepo, groupRepo, adRepo, log)
 
 	// B2: 用户认证
-	authService := authsvc.New(userRepo, rdb, cfg.App.Secret)
+	authService := authsvc.New(userRepo, invRepo, rdb, cfg.App.Secret)
 
-	// B3: OAuth 授权（授权完成后自动触发后台同步）
-	oauthService := oauthsvc.New(platformClients, tokenRepo, advRepo, syncService, rdb, log)
+	// B3: OAuth 授权（授权完成后自动触发后台同步，受额度限制）
+	oauthService := oauthsvc.New(platformClients, tokenRepo, advRepo, userRepo, syncService, rdb, log)
 
 	// B5: 广告主账号
 	advertiserService := advertisersvc.New(advRepo, tokenRepo, logRepo, platformClients, syncService, log)
@@ -89,6 +93,9 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 	// Dashboard: 统计概览（需要 platform clients、tokenRepo、advRepo 以支持 GetAdvertiserReport）
 	statsService := statssvc.New(db, log, platformClients, tokenRepo, advRepo)
 
+	// 邀请 & 额度
+	inviteService := invitesvc.New(userRepo, advRepo, invRepo)
+
 	// ── Handlers ──────────────────────────────────────────
 	authHandler := authhandler.New(authService)
 	oauthHandler := oauthhandler.New(oauthService)
@@ -98,6 +105,7 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 	adHandler := adhandler.New(adService)
 	operationLogHandler := operationloghandler.New(operationLogService)
 	statsHandler := statshandler.New(statsService)
+	inviteHandler := invitehandler.New(inviteService)
 
 	// ── Gin Engine ────────────────────────────────────────
 	r := gin.New()
@@ -172,6 +180,13 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 
 		// B9: 操作日志
 		protected.GET("/operation-logs", operationLogHandler.List)
+
+		// 邀请 & 额度
+		users := protected.Group("/users")
+		{
+			users.GET("/invite", inviteHandler.GetInviteInfo)
+			users.GET("/quota", inviteHandler.GetQuota)
+		}
 
 		// Dashboard + 广告汇总统计
 		protected.GET("/stats", statsHandler.Overview)

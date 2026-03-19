@@ -11,6 +11,11 @@ import (
 	"ad-x-manage/backend/internal/model/entity"
 )
 
+type PlatformCount struct {
+	Platform string
+	Count    int
+}
+
 type Repository interface {
 	Upsert(ctx context.Context, advertisers []*entity.Advertiser) error
 	FindByUserAndPlatform(ctx context.Context, userID uint64, platform, keyword string, page, pageSize int) ([]*entity.Advertiser, int64, error)
@@ -18,6 +23,8 @@ type Repository interface {
 	FindByID(ctx context.Context, id uint64) (*entity.Advertiser, error)
 	FindByPlatformID(ctx context.Context, platform, advertiserID string) (*entity.Advertiser, error)
 	FindByUserPlatformIDs(ctx context.Context, userID uint64, platform string, advertiserIDs []string) ([]*entity.Advertiser, error)
+	CountActiveByUserID(ctx context.Context, userID uint64) (int64, error)
+	CountPerPlatformByUserID(ctx context.Context, userID uint64) ([]PlatformCount, error)
 	UpdateSyncedAt(ctx context.Context, id uint64, t time.Time) error
 	UpdateInfo(ctx context.Context, id uint64, currency, timezone string) error
 	UpdateDailyBudget(ctx context.Context, id uint64, budget float64) error
@@ -98,6 +105,26 @@ func (r *repo) FindByPlatformID(ctx context.Context, platform, advertiserID stri
 		return nil, nil
 	}
 	return &a, err
+}
+
+func (r *repo) CountActiveByUserID(ctx context.Context, userID uint64) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&entity.Advertiser{}).
+		Where("user_id = ? AND status = 1", userID).
+		Count(&count).Error
+	return count, err
+}
+
+func (r *repo) CountPerPlatformByUserID(ctx context.Context, userID uint64) ([]PlatformCount, error) {
+	var results []PlatformCount
+	err := r.db.WithContext(ctx).
+		Model(&entity.Advertiser{}).
+		Select("platform, COUNT(*) as count").
+		Where("user_id = ? AND status = 1", userID).
+		Group("platform").
+		Scan(&results).Error
+	return results, err
 }
 
 func (r *repo) UpdateSyncedAt(ctx context.Context, id uint64, t time.Time) error {

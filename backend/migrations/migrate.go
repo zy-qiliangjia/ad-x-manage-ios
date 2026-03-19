@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/rand"
 	"fmt"
 	"os"
 
@@ -32,6 +33,7 @@ func main() {
 		&entity.AdGroup{},
 		&entity.Ad{},
 		&entity.OperationLog{},
+		&entity.InviteRecord{},
 	}
 
 	// 手动迁移：将 platform_tokens 的加密列重命名为明文列名。
@@ -65,10 +67,64 @@ func main() {
 	db.Exec(`ALTER TABLE ad_groups DROP INDEX uk_platform_adgroup`)
 	db.Exec(`ALTER TABLE ads DROP INDEX uk_platform_ad`)
 
+	// 先为 users 表加列（不带唯一索引），以便存量数据补填后再建索引
+	fmt.Println("adding invite_code / quota columns if needed...")
+	var inviteColCount int64
+	db.Raw(`SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'
+		AND COLUMN_NAME = 'invite_code'`).Scan(&inviteColCount)
+	if inviteColCount == 0 {
+		if err := db.Exec(`ALTER TABLE users
+			ADD COLUMN invite_code VARCHAR(20) NOT NULL DEFAULT '',
+			ADD COLUMN quota       INT         NOT NULL DEFAULT 5`).Error; err != nil {
+			fmt.Fprintf(os.Stderr, "add columns error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("columns added")
+	} else {
+		fmt.Println("columns already exist, skipping")
+	}
+
+	// 补填 invite_code（必须在建唯一索引之前完成）
+	fmt.Println("backfilling invite_code for existing users...")
+	var users []entity.User
+	if err := db.Where("invite_code = ''").Find(&users).Error; err != nil {
+		fmt.Fprintf(os.Stderr, "fetch users error: %v\n", err)
+		os.Exit(1)
+	}
+	for _, u := range users {
+		code, err := generateInviteCode()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "generate invite code error: %v\n", err)
+			continue
+		}
+		updates := map[string]any{"invite_code": code}
+		if u.Quota == 0 {
+			updates["quota"] = 5
+		}
+		db.Model(&entity.User{}).Where("id = ?", u.ID).Updates(updates)
+	}
+	fmt.Printf("backfilled %d users\n", len(users))
+
+	// 再执行 AutoMigrate（此时 invite_code 已全部不重复，可安全建唯一索引）
 	fmt.Println("running migrations...")
 	if err := db.AutoMigrate(models...); err != nil {
 		fmt.Fprintf(os.Stderr, "migrate error: %v\n", err)
 		os.Exit(1)
 	}
 	fmt.Println("migrations completed successfully")
+}
+
+func generateInviteCode() (string, error) {
+	const charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	const codeLen = 6
+	b := make([]byte, codeLen)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	result := make([]byte, codeLen)
+	for i, v := range b {
+		result[i] = charset[int(v)%len(charset)]
+	}
+	return "AP-" + string(result), nil
 }

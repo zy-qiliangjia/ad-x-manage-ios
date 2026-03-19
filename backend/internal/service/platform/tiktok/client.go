@@ -433,9 +433,9 @@ func (c *Client) UpdateAdGroupBudget(accessToken, advertiserID, adGroupID string
 
 func (c *Client) UpdateAdGroupStatus(accessToken, advertiserID, adGroupID, status string) error {
 	body := map[string]any{
-		"advertiser_id": advertiserID,
-		"adgroup_ids":   []string{adGroupID},
-		"opt_status":    status,
+		"advertiser_id":    advertiserID,
+		"adgroup_ids":      []string{adGroupID},
+		"operation_status": status,
 	}
 	var resp struct {
 		Code    int    `json:"code"`

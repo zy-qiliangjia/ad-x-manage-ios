@@ -169,20 +169,21 @@ CREATE TABLE users (
 
 -- 平台 OAuth Token（一个用户可绑定多个平台账号）
 CREATE TABLE platform_tokens (
-    id                BIGINT       PRIMARY KEY AUTO_INCREMENT,
-    user_id           BIGINT       NOT NULL,
-    platform          VARCHAR(20)  NOT NULL COMMENT 'tiktok | kwai',
-    open_user_id      VARCHAR(100) NOT NULL COMMENT '平台用户 ID',
-    access_token_enc  TEXT         NOT NULL COMMENT 'AES 加密存储',
-    refresh_token_enc TEXT,
-    expires_at        DATETIME,
-    status            TINYINT      DEFAULT 1 COMMENT '1有效 0失效',
-    created_at        DATETIME     DEFAULT CURRENT_TIMESTAMP,
-    updated_at        DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    id            BIGINT       PRIMARY KEY AUTO_INCREMENT,
+    user_id       BIGINT       NOT NULL,
+    platform      VARCHAR(20)  NOT NULL COMMENT 'tiktok | kwai',
+    open_user_id  VARCHAR(100) NOT NULL COMMENT '平台用户 ID',
+    access_token  TEXT         NOT NULL,
+    refresh_token TEXT,
+    expires_at    DATETIME,
+    status        TINYINT      DEFAULT 1 COMMENT '1有效 0失效',
+    created_at    DATETIME     DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_user_platform (user_id, platform, open_user_id)
 );
 
 -- 广告主账号
+-- 唯一键含 user_id：不同用户授权同一平台广告主时各自拥有独立记录，互不影响
 CREATE TABLE advertisers (
     id              BIGINT       PRIMARY KEY AUTO_INCREMENT,
     token_id        BIGINT       NOT NULL COMMENT '关联 platform_tokens.id',
@@ -196,10 +197,11 @@ CREATE TABLE advertisers (
     synced_at       DATETIME     COMMENT '最后同步时间',
     created_at      DATETIME     DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_platform_adv (platform, advertiser_id)
+    UNIQUE KEY uk_user_platform_advertiser (user_id, platform, advertiser_id)
 );
 
 -- 推广系列
+-- 唯一键含 advertiser_id（内部 ID）：advertiser_id 已隐含用户隔离，无需再加 user_id
 CREATE TABLE campaigns (
     id              BIGINT       PRIMARY KEY AUTO_INCREMENT,
     advertiser_id   BIGINT       NOT NULL COMMENT '关联 advertisers.id',
@@ -212,7 +214,7 @@ CREATE TABLE campaigns (
     spend           DECIMAL(18,2) DEFAULT 0,
     created_at      DATETIME     DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_platform_camp (platform, campaign_id)
+    UNIQUE KEY uk_advertiser_campaign (advertiser_id, campaign_id)
 );
 
 -- 广告组
@@ -229,7 +231,7 @@ CREATE TABLE ad_groups (
     spend         DECIMAL(18,2) DEFAULT 0,
     created_at    DATETIME     DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_platform_adg (platform, adgroup_id)
+    UNIQUE KEY uk_advertiser_adgroup (advertiser_id, adgroup_id)
 );
 
 -- 广告
@@ -243,7 +245,7 @@ CREATE TABLE ads (
     status        VARCHAR(50),
     created_at    DATETIME     DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_platform_ad (platform, ad_id)
+    UNIQUE KEY uk_advertiser_ad (advertiser_id, ad_id)
 );
 
 -- 操作日志
@@ -506,3 +508,26 @@ go.uber.org/zap
 - 操作接口需校验当前用户是否有权限操作目标广告主（防越权）
 - 生产环境通过系统环境变量注入，不依赖 `.env` 文件
 - JWT 黑名单使用 Redis 存储（key: `jwt:blacklist:{jti}`，TTL = Token 剩余有效期）
+
+## 多用户数据隔离设计
+
+### 核心原则
+
+不同用户授权同一第三方平台账号时，各自拥有完全独立的数据行，互不干扰。
+
+### 唯一键设计
+
+| 表 | 唯一键 | 说明 |
+|------|------|------|
+| `advertisers` | `(user_id, platform, advertiser_id)` | 不同用户授权同一广告主 → 各自独立行 |
+| `campaigns` | `(advertiser_id, campaign_id)` | `advertiser_id` 为内部 ID，已隐含用户隔离 |
+| `ad_groups` | `(advertiser_id, adgroup_id)` | 同上 |
+| `ads` | `(advertiser_id, ad_id)` | 同上 |
+
+### UPSERT 冲突处理
+
+各层 `Upsert` 的 `OnConflict.Columns` 必须与上表唯一键严格对应，否则 MySQL `ON DUPLICATE KEY UPDATE` 无法命中正确索引。
+
+### Migration 注意事项
+
+变更唯一键时，必须在 `migrations/migrate.go` 中手动 `DROP` 旧索引后再执行 `AutoMigrate`，因为 GORM AutoMigrate 只增不删索引。

@@ -137,6 +137,40 @@ struct AdGroupReportResponse: Decodable {
     let list: [AdGroupReportMetrics]
 }
 
+// MARK: - 推广系列报表指标
+
+struct CampaignReportMetrics: Decodable {
+    let campaignID: String
+    let spend: Double
+    let clicks: Int
+    let impressions: Int
+    let conversion: Int
+    let cpa: Double
+
+    enum CodingKeys: String, CodingKey {
+        case campaignID  = "campaign_id"
+        case spend
+        case clicks
+        case impressions
+        case conversion
+        case cpa
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        campaignID  = (try? c.decodeIfPresent(String.self, forKey: .campaignID)) ?? ""
+        spend       = (try? c.decodeIfPresent(Double.self, forKey: .spend))       ?? 0
+        clicks      = (try? c.decodeIfPresent(Int.self,    forKey: .clicks))      ?? 0
+        impressions = (try? c.decodeIfPresent(Int.self,    forKey: .impressions)) ?? 0
+        conversion  = (try? c.decodeIfPresent(Int.self,    forKey: .conversion))  ?? 0
+        cpa         = (try? c.decodeIfPresent(Double.self, forKey: .cpa))         ?? 0
+    }
+}
+
+struct CampaignReportResponse: Decodable {
+    let list: [CampaignReportMetrics]
+}
+
 struct StatsReportResponse: Decodable {
     let list: [AdvertiserReportMetrics]
     let totalMetrics: AdvertiserReportMetrics?

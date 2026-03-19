@@ -565,6 +565,8 @@ struct AdsCampaignView: View {
                                 CampaignManageCard(
                                     item: item,
                                     isUpdating: vm.updatingStatusID == item.id,
+                                    metrics: vm.campaignMetrics[item.campaignID],
+                                    isLoadingMetrics: vm.isLoadingMetrics,
                                     onBudget: { vm.budgetTarget = item },
                                     onToggle: { vm.statusConfirmTarget = item },
                                     onDrill: { navPath.append(.adGroups(advertiser: advertiser, campaign: item)) }
@@ -831,13 +833,15 @@ struct AdsAdView: View {
 private struct CampaignManageCard: View {
     let item: CampaignItem
     let isUpdating: Bool
+    let metrics: CampaignReportMetrics?
+    let isLoadingMetrics: Bool
     let onBudget: () -> Void
     let onToggle: () -> Void
     let onDrill: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
-            // 顶部：名称 + 状态开关
+            // 顶部：名称 + 状态徽章
             HStack(spacing: AppTheme.Spacing.sm) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(item.campaignName)
@@ -855,27 +859,17 @@ private struct CampaignManageCard: View {
                     ProgressView().scaleEffect(0.8)
                 } else {
                     StatusBadge(status: item.status)
-                    // Toggle 开关
-                    Toggle("", isOn: .constant(item.status.isAdActive))
-                        .toggleStyle(SwitchToggleStyle(tint: AppTheme.Colors.success))
-                        .labelsHidden()
-                        .scaleEffect(0.85)
-                        .onTapGesture { onToggle() }
                 }
             }
             .padding(.horizontal, AppTheme.Spacing.lg)
             .padding(.top, AppTheme.Spacing.md)
 
-            // 消耗 + 预算行
-            HStack {
-                metricCell(label: "消耗", value: item.spend.statFormatted)
-                metricCell(label: item.budgetMode.budgetModeLabel,
-                           value: item.budgetMode == "BUDGET_MODE_INFINITE"
-                               ? "不限" : "¥\(Int(item.budget))")
-                Spacer()
+            // 指标区域
+            if isLoadingMetrics && metrics == nil {
+                campaignMetricsSkeleton
+            } else {
+                campaignMetricsGrid
             }
-            .padding(.horizontal, AppTheme.Spacing.lg)
-            .padding(.vertical, AppTheme.Spacing.sm)
 
             Divider().padding(.horizontal, AppTheme.Spacing.lg)
 
@@ -919,16 +913,65 @@ private struct CampaignManageCard: View {
         .contentShape(Rectangle())
     }
 
+    // 5格指标 + 操作按钮：消耗、点击、展示 / 转化、CPA、暂停开启
+    private var campaignMetricsGrid: some View {
+        let cpaVal = metrics.map { $0.cpa > 0 ? $0.cpa.statFormatted : "-" } ?? "-"
+        return LazyVGrid(
+            columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
+            spacing: AppTheme.Spacing.sm
+        ) {
+            metricCell(label: "消耗",    value: metrics.map { $0.spend.statFormatted }      ?? item.spend.statFormatted)
+            metricCell(label: "点击",    value: metrics.map { "\($0.clicks)" }              ?? "-")
+            metricCell(label: "展示",    value: metrics.map { "\($0.impressions)" }         ?? "-")
+            metricCell(label: "转化",    value: metrics.map { "\($0.conversion)" }          ?? "-")
+            metricCell(label: "CPA",     value: cpaVal)
+            toggleButton
+        }
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.vertical, AppTheme.Spacing.sm)
+    }
+
+    private var toggleButton: some View {
+        Button(action: onToggle) {
+            VStack(alignment: .leading, spacing: 2) {
+                Image(systemName: item.status.isAdActive ? "pause.circle.fill" : "play.circle.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(item.status.isAdActive ? Color.orange : AppTheme.Colors.success)
+                Text(item.status.isAdActive ? "暂停" : "开启")
+                    .font(.system(size: 10))
+                    .foregroundStyle(item.status.isAdActive ? Color.orange : AppTheme.Colors.success)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    // 加载骨架
+    private var campaignMetricsSkeleton: some View {
+        LazyVGrid(
+            columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
+            spacing: AppTheme.Spacing.sm
+        ) {
+            ForEach(0..<5, id: \.self) { _ in
+                VStack(alignment: .leading, spacing: 2) {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(AppTheme.Colors.textSecondary.opacity(0.15))
+                        .frame(width: 44, height: 13)
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(AppTheme.Colors.textSecondary.opacity(0.10))
+                        .frame(width: 28, height: 10)
+                }
+            }
+            toggleButton
+        }
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.vertical, AppTheme.Spacing.sm)
+    }
+
     private func metricCell(label: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(value)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(AppTheme.Colors.textPrimary)
-            Text(label)
-                .font(.system(size: 10))
-                .foregroundStyle(AppTheme.Colors.textSecondary)
+            Text(value).font(.system(size: 13, weight: .semibold)).foregroundStyle(AppTheme.Colors.textPrimary)
+            Text(label).font(.system(size: 10)).foregroundStyle(AppTheme.Colors.textSecondary)
         }
-        .padding(.trailing, AppTheme.Spacing.lg)
     }
 }
 
@@ -1082,9 +1125,28 @@ final class AllCampaignsViewModel: ObservableObject {
     @Published var error: String? = nil
     @Published var platformFilter: Platform? { didSet { Task { await refresh() } } }
 
-    private let service  = AdDetailService.shared
-    private var page     = 1
-    private let pageSize = 20
+    @Published var dateFilter: DateRangeFilter = .last7Days {
+        didSet {
+            metricsLoadedKey = nil
+            Task { await loadCampaignMetrics() }
+        }
+    }
+    @Published var campaignMetrics: [String: CampaignReportMetrics] = [:]
+    @Published var isLoadingMetrics = false
+
+    @Published var budgetTarget: CampaignItem?        = nil
+    @Published var statusConfirmTarget: CampaignItem? = nil
+    @Published var updatingStatusID: UInt64?          = nil
+
+    private let service      = AdDetailService.shared
+    private let statsService = StatsService.shared
+    private var page         = 1
+    private let pageSize     = 20
+
+    // 30分钟本地指标缓存
+    private var metricsLoadedKey: String? = nil
+    private var metricsLoadedAt: Date?    = nil
+    private let metricsCacheTTL: TimeInterval = 30 * 60
 
     init(initialPlatform: Platform? = nil) {
         _platformFilter = Published(wrappedValue: initialPlatform)
@@ -1098,6 +1160,7 @@ final class AllCampaignsViewModel: ObservableObject {
             items = fetched; hasMore = p.hasMore; page = 2
         } catch { self.error = msg(error) }
         isLoading = false
+        await loadCampaignMetrics()
     }
 
     func refresh() async {
@@ -1106,6 +1169,8 @@ final class AllCampaignsViewModel: ObservableObject {
             let (fetched, p) = try await service.allCampaigns(platform: platformFilter?.rawValue, page: 1, pageSize: pageSize)
             items = fetched; hasMore = p.hasMore; page = 2
         } catch { self.error = msg(error) }
+        metricsLoadedKey = nil
+        await loadCampaignMetrics()
     }
 
     func loadMore() async {
@@ -1116,6 +1181,59 @@ final class AllCampaignsViewModel: ObservableObject {
             items += fetched; hasMore = p.hasMore; page += 1
         } catch { self.error = msg(error) }
         isLoadingMore = false
+        metricsLoadedKey = nil
+        await loadCampaignMetrics()
+    }
+
+    func updateBudget(item: CampaignItem, budget: Double) async {
+        do {
+            try await service.updateCampaignBudget(id: item.id, budget: budget)
+            await refresh()
+        } catch { self.error = msg(error) }
+    }
+
+    func updateStatus(item: CampaignItem, action: String) async {
+        updatingStatusID = item.id
+        defer { updatingStatusID = nil }
+        do {
+            try await service.updateCampaignStatus(id: item.id, action: action)
+            await refresh()
+        } catch { self.error = msg(error) }
+    }
+
+    func loadCampaignMetrics() async {
+        guard !items.isEmpty else { return }
+
+        let r = dateFilter.dateRange
+        let cacheKey = "\(platformFilter?.rawValue ?? "all")-\(r.from)-\(r.to)-\(items.count)"
+
+        if let key = metricsLoadedKey, let loadedAt = metricsLoadedAt,
+           key == cacheKey, Date().timeIntervalSince(loadedAt) < metricsCacheTTL {
+            return
+        }
+
+        isLoadingMetrics = true
+
+        // 按广告主 ID 分组，逐广告主调用报表接口
+        var byAdvertiser: [UInt64: [String]] = [:]
+        for item in items {
+            byAdvertiser[item.advertiserID, default: []].append(item.campaignID)
+        }
+
+        for (advID, campIDs) in byAdvertiser {
+            if let resp = try? await statsService.campaignReport(
+                advertiserDBID: advID,
+                campaignIDs: campIDs,
+                startDate: r.from,
+                endDate: r.to
+            ) {
+                for m in resp.list { campaignMetrics[m.campaignID] = m }
+            }
+        }
+
+        metricsLoadedKey = cacheKey
+        metricsLoadedAt  = Date()
+        isLoadingMetrics = false
     }
 
     private func msg(_ e: Error) -> String? {
@@ -1268,7 +1386,6 @@ final class AllAdsViewModel: ObservableObject {
 struct AdsAllCampaignsView: View {
     @Binding var navPath: [AdsNav]
     @StateObject private var vm: AllCampaignsViewModel
-    @State private var summaryDateFilter: DateRangeFilter = .last7Days
 
     init(navPath: Binding<[AdsNav]>, initialPlatform: Platform? = nil) {
         _navPath = navPath
@@ -1292,28 +1409,37 @@ struct AdsAllCampaignsView: View {
                 } else if vm.items.isEmpty && !vm.isLoading {
                     emptyView("暂无推广系列")
                 } else {
+                    let totalSpend = vm.campaignMetrics.values.reduce(0.0) { $0 + $1.spend }
+                    let totalClicks = vm.campaignMetrics.values.reduce(0) { $0 + $1.clicks }
+                    let totalImpressions = vm.campaignMetrics.values.reduce(0) { $0 + $1.impressions }
+                    let totalConversions = vm.campaignMetrics.values.reduce(0) { $0 + $1.conversion }
                     ScrollView {
                         LazyVStack(spacing: AppTheme.Spacing.md) {
                             AdsSummaryCardView(
                                 scopeLabel: "全部推广系列",
-                                spend:       vm.items.reduce(0) { $0 + $1.spend },
-                                clicks:      vm.items.reduce(0) { $0 + $1.clicks },
-                                impressions: vm.items.reduce(0) { $0 + $1.impressions },
-                                conversions: vm.items.reduce(0) { $0 + $1.conversions },
-                                dateFilter:  $summaryDateFilter,
-                                isLoadingSummary: vm.isLoading
+                                spend:       totalSpend > 0 ? totalSpend : vm.items.reduce(0) { $0 + $1.spend },
+                                clicks:      totalClicks,
+                                impressions: totalImpressions,
+                                conversions: totalConversions,
+                                dateFilter:  Binding(get: { vm.dateFilter }, set: { vm.dateFilter = $0 }),
+                                isLoadingSummary: vm.isLoadingMetrics
                             )
                             ForEach(vm.items) { item in
-                                Button {
-                                    let adv = AdvertiserListItem(
-                                        id: item.advertiserID, platform: item.platform,
-                                        advertiserID: String(item.advertiserID),
-                                        advertiserName: item.advertiserName)
-                                    navPath.append(.adGroups(advertiser: adv, campaign: item))
-                                } label: {
-                                    CampaignReadOnlyCard(item: item)
-                                }
-                                .buttonStyle(.plain)
+                                CampaignManageCard(
+                                    item: item,
+                                    isUpdating: vm.updatingStatusID == item.id,
+                                    metrics: vm.campaignMetrics[item.campaignID],
+                                    isLoadingMetrics: vm.isLoadingMetrics,
+                                    onBudget: { vm.budgetTarget = item },
+                                    onToggle: { vm.statusConfirmTarget = item },
+                                    onDrill: {
+                                        let adv = AdvertiserListItem(
+                                            id: item.advertiserID, platform: item.platform,
+                                            advertiserID: String(item.advertiserID),
+                                            advertiserName: item.advertiserName)
+                                        navPath.append(.adGroups(advertiser: adv, campaign: item))
+                                    }
+                                )
                                 .onAppear { if item.id == vm.items.last?.id { Task { await vm.loadMore() } } }
                             }
                             if vm.isLoadingMore { ProgressView().padding() }
@@ -1322,6 +1448,13 @@ struct AdsAllCampaignsView: View {
                         .padding(.vertical, AppTheme.Spacing.md)
                     }
                     .refreshable { await vm.refresh() }
+                    .sheet(item: $vm.budgetTarget) { item in
+                        BudgetEditSheet(
+                            itemName: item.campaignName,
+                            currentBudget: item.budget,
+                            budgetMode: item.budgetMode
+                        ) { newBudget in await vm.updateBudget(item: item, budget: newBudget) }
+                    }
                 }
             }
         }
@@ -1329,9 +1462,25 @@ struct AdsAllCampaignsView: View {
         .navigationTitle("全部推广系列")
         .navigationBarTitleDisplayMode(.inline)
         .safeAreaInset(edge: .top) { platformPicker($vm.platformFilter) }
-        .alert("加载失败", isPresented: Binding(get: { vm.error != nil }, set: { if !$0 { vm.error = nil } })) {
+        .alert("操作失败", isPresented: Binding(get: { vm.error != nil }, set: { if !$0 { vm.error = nil } })) {
             Button("确定", role: .cancel) { vm.error = nil }
         } message: { Text(vm.error ?? "") }
+        .confirmationDialog(
+            vm.statusConfirmTarget?.status.isAdActive == true ? "确认暂停推广系列？" : "确认开启推广系列？",
+            isPresented: Binding(get: { vm.statusConfirmTarget != nil }, set: { if !$0 { vm.statusConfirmTarget = nil } }),
+            titleVisibility: .visible
+        ) {
+            if let target = vm.statusConfirmTarget {
+                let isPause = target.status.isAdActive
+                Button(isPause ? "暂停" : "开启", role: isPause ? .destructive : nil) {
+                    vm.statusConfirmTarget = nil
+                    Task { await vm.updateStatus(item: target, action: isPause ? "pause" : "enable") }
+                }
+                Button("取消", role: .cancel) { vm.statusConfirmTarget = nil }
+            }
+        } message: {
+            if let target = vm.statusConfirmTarget { Text(target.campaignName) }
+        }
         .task { await vm.load() }
     }
 }
@@ -1621,44 +1770,6 @@ struct AdsAdsForAccountView: View {
             Button("确定", role: .cancel) { vm.error = nil }
         } message: { Text(vm.error ?? "") }
         .task { await vm.load() }
-    }
-}
-
-// MARK: - Read-only cards (全量视图用)
-
-private struct CampaignReadOnlyCard: View {
-    let item: CampaignItem
-
-    var body: some View {
-        HStack(spacing: AppTheme.Spacing.md) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(item.campaignName)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(AppTheme.Colors.textPrimary)
-                    .lineLimit(2)
-                if !item.advertiserName.isEmpty {
-                    Text(item.advertiserName)
-                        .font(.system(size: 11))
-                        .foregroundStyle(AppTheme.Colors.textSecondary)
-                        .lineLimit(1)
-                }
-            }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 4) {
-                StatusBadge(status: item.status)
-                Text(item.spend.statFormatted)
-                    .font(.system(size: 11))
-                    .foregroundStyle(AppTheme.Colors.textSecondary)
-            }
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(AppTheme.Colors.textSecondary.opacity(0.4))
-        }
-        .padding(AppTheme.Spacing.md)
-        .background(AppTheme.Colors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xl))
-        .cardShadow()
-        .contentShape(Rectangle())
     }
 }
 

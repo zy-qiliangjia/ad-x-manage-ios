@@ -704,6 +704,8 @@ https://business-api.tiktok.com/open_api/v1.3/report/integrated/get?page=1&data_
 - 通过调用接口获取 相关数据 -进行本地缓存 30分钟
 补充部分(针对第三方逻辑)：
 - 需完善相关后端服务
+- 当前关于广告层级-区别不大-主要是数据指标和维度的区别，不能互相影响
+- 接口调用有时间和频率限制，且 advertiser_id 一次最多支持5个，如果广告主过多的话，需要拆分，频率限制 1s 10次
 - 
 - 调用示例： tiktok 平台
 - 调用示例

@@ -20,10 +20,18 @@ final class CampaignListViewModel: ObservableObject {
 
     // 汇总统计
     @Published var dateFilter: DateRangeFilter = .last7Days {
-        didSet { Task { await loadSummary() } }
+        didSet {
+            metricsLoadedKey = nil // 日期变化时清除指标缓存
+            Task { await loadSummary() }
+            Task { await loadCampaignMetrics() }
+        }
     }
     @Published var summary: StatsSummary? = nil
     @Published var summaryLoading        = false
+
+    // 逐推广系列报表指标
+    @Published var campaignMetrics: [String: CampaignReportMetrics] = [:]
+    @Published var isLoadingMetrics = false
 
     var lastUpdatedLabel: String? { summary?.updatedTimeLabel }
 
@@ -32,6 +40,11 @@ final class CampaignListViewModel: ObservableObject {
     private let statsService = StatsService.shared
     private var page     = 1
     private let pageSize = 20
+
+    // 30分钟本地指标缓存
+    private var metricsLoadedKey: String? = nil
+    private var metricsLoadedAt: Date?    = nil
+    private let metricsCacheTTL: TimeInterval = 30 * 60
 
     init(advertiserID: UInt64) { self.advertiserID = advertiserID }
 
@@ -48,6 +61,7 @@ final class CampaignListViewModel: ObservableObject {
         } catch { self.error = msg(error) }
         isLoading = false
         await loadSummary()
+        await loadCampaignMetrics()
     }
 
     func refresh() async {
@@ -59,6 +73,37 @@ final class CampaignListViewModel: ObservableObject {
             page    = 2
         } catch { self.error = msg(error) }
         await loadSummary()
+        metricsLoadedKey = nil // 刷新时强制重新拉取
+        await loadCampaignMetrics()
+    }
+
+    func loadCampaignMetrics() async {
+        guard !items.isEmpty else { return }
+
+        let r = dateFilter.dateRange
+        let cacheKey = "\(advertiserID)-\(r.from)-\(r.to)"
+
+        // 30分钟内已缓存则跳过
+        if let key = metricsLoadedKey, let loadedAt = metricsLoadedAt,
+           key == cacheKey, Date().timeIntervalSince(loadedAt) < metricsCacheTTL {
+            return
+        }
+
+        isLoadingMetrics = true
+        let ids = items.map { $0.campaignID }
+        if let resp = try? await statsService.campaignReport(
+            advertiserDBID: advertiserID,
+            campaignIDs: ids,
+            startDate: r.from,
+            endDate: r.to
+        ) {
+            var map: [String: CampaignReportMetrics] = [:]
+            for m in resp.list { map[m.campaignID] = m }
+            campaignMetrics = map
+            metricsLoadedKey = cacheKey
+            metricsLoadedAt  = Date()
+        }
+        isLoadingMetrics = false
     }
 
     func loadSummary() async {
@@ -79,6 +124,8 @@ final class CampaignListViewModel: ObservableObject {
             page   += 1
         } catch { self.error = msg(error) }
         isLoadingMore = false
+        metricsLoadedKey = nil // 新页加载后重新拉取新增条目
+        await loadCampaignMetrics()
     }
 
     // MARK: - 写操作

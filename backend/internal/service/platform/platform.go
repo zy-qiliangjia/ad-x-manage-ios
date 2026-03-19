@@ -57,6 +57,10 @@ type Client interface {
 	// GetAdGroupReport 拉取逐广告组报表明细（per-adgroup）。
 	// adGroupIDs 为平台广告组 ID 列表，按 ≤5 个/批切分请求，返回各广告组明细。
 	GetAdGroupReport(accessToken, advertiserID string, adGroupIDs []string, startDate, endDate string) ([]*AdGroupReportItem, error)
+
+	// GetCampaignReport 拉取逐推广系列报表明细（per-campaign）。
+	// campaignIDs 为平台推广系列 ID 列表，返回各推广系列指标明细。
+	GetCampaignReport(accessToken, advertiserID string, campaignIDs []string, startDate, endDate string) ([]*CampaignReportItem, error)
 }
 
 // ── 共享数据结构 ───────────────────────────────────────────────
@@ -132,6 +136,16 @@ type ReportResult struct {
 // AdGroupReportItem 单广告组报表明细指标。
 type AdGroupReportItem struct {
 	AdGroupID   string
+	Spend       float64
+	Clicks      int64
+	Impressions int64
+	Conversion  int64
+	CPA         float64
+}
+
+// CampaignReportItem 单推广系列报表明细指标。
+type CampaignReportItem struct {
+	CampaignID  string
 	Spend       float64
 	Clicks      int64
 	Impressions int64

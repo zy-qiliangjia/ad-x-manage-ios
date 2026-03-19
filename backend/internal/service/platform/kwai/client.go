@@ -493,6 +493,15 @@ func (c *Client) GetAdGroupReport(_ string, _ string, adGroupIDs []string, _, _ 
 	return items, nil
 }
 
+// GetCampaignReport 快手推广系列报表（待实现，返回零值占位）。
+func (c *Client) GetCampaignReport(_ string, _ string, campaignIDs []string, _, _ string) ([]*platform.CampaignReportItem, error) {
+	items := make([]*platform.CampaignReportItem, 0, len(campaignIDs))
+	for _, id := range campaignIDs {
+		items = append(items, &platform.CampaignReportItem{CampaignID: id})
+	}
+	return items, nil
+}
+
 func (c *Client) do(req *http.Request, out any) error {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

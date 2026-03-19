@@ -178,6 +178,11 @@ func (s *service) Callback(ctx context.Context, userID uint64, platformName, cod
 		return nil, fmt.Errorf("save advertisers: %w", err)
 	}
 
+	// 刷新 used_quota（重新计算，覆盖写入）
+	if newCount, err := s.advRepo.CountActiveByUserID(ctx, userID); err == nil {
+		_ = s.userRepo.SetUsedQuota(ctx, userID, int(newCount))
+	}
+
 	// 5. 查询已存入 DB 的广告主（带 ID），触发后台同步
 	savedAdvs, _, _ := s.advRepo.FindByUserAndPlatform(ctx, userID, platformName, "", 1, 1000)
 	s.triggerBackgroundSync(savedAdvs)
@@ -237,7 +242,14 @@ func (s *service) Revoke(ctx context.Context, userID, tokenID uint64) error {
 	if err := s.tokenRepo.Revoke(ctx, tokenID); err != nil {
 		return err
 	}
-	return s.advRepo.RevokeByTokenID(ctx, tokenID)
+	if err := s.advRepo.RevokeByTokenID(ctx, tokenID); err != nil {
+		return err
+	}
+	// 刷新 used_quota
+	if newCount, err := s.advRepo.CountActiveByUserID(ctx, userID); err == nil {
+		_ = s.userRepo.SetUsedQuota(ctx, userID, int(newCount))
+	}
+	return nil
 }
 
 // ── 工具方法 ───────────────────────────────────────────────────

@@ -87,11 +87,7 @@ func (s *service) GetQuota(ctx context.Context, userID uint64) (*UserQuotaRespon
 		return nil, fmt.Errorf("user not found")
 	}
 
-	usedTotal, err := s.advRepo.CountActiveByUserID(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-
+	// 按平台分项（仍需查询，用于展示明细）
 	platformCounts, err := s.advRepo.CountPerPlatformByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -107,7 +103,7 @@ func (s *service) GetQuota(ctx context.Context, userID uint64) (*UserQuotaRespon
 
 	return &UserQuotaResponse{
 		TotalQuota: user.Quota,
-		UsedTotal:  usedTotal,
+		UsedTotal:  int64(user.UsedQuota), // 使用存储值，无需 COUNT(*)
 		Platforms:  platforms,
 	}, nil
 }

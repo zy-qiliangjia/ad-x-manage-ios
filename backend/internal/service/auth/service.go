@@ -37,21 +37,23 @@ type service struct {
 	invRepo   inviterepo.Repository
 	rdb       *redis.Client
 	jwtSecret string
+	product   string
 }
 
-func New(userRepo userrepo.Repository, invRepo inviterepo.Repository, rdb *redis.Client, jwtSecret string) Service {
+func New(userRepo userrepo.Repository, invRepo inviterepo.Repository, rdb *redis.Client, jwtSecret, product string) Service {
 	return &service{
 		userRepo:  userRepo,
 		invRepo:   invRepo,
 		rdb:       rdb,
 		jwtSecret: jwtSecret,
+		product:   product,
 	}
 }
 
 // Register 注册新用户（邮箱唯一校验 + bcrypt 密码哈希）。
 // 若提供有效邀请码，双方各获得 +5 账号额度。
 func (s *service) Register(ctx context.Context, req *dto.RegisterRequest) error {
-	existing, err := s.userRepo.FindByEmail(ctx, req.Email)
+	existing, err := s.userRepo.FindByEmail(ctx, s.product, req.Email)
 	if err != nil {
 		return err
 	}
@@ -85,11 +87,15 @@ func (s *service) Register(ctx context.Context, req *dto.RegisterRequest) error 
 	}
 
 	newUser := &entity.User{
+		Product:      s.product,
 		Email:        req.Email,
 		PasswordHash: string(hash),
 		Name:         req.Name,
 		InviteCode:   inviteCode,
 		Quota:        quota,
+	}
+	if inviter != nil {
+		newUser.InvitedBy = &inviter.ID
 	}
 	if err := s.userRepo.Create(ctx, newUser); err != nil {
 		return err
@@ -124,7 +130,7 @@ func generateInviteCode() (string, error) {
 
 // Login 邮箱密码登录，验证通过后签发 JWT。
 func (s *service) Login(ctx context.Context, req *dto.LoginRequest) (*dto.LoginResponse, error) {
-	user, err := s.userRepo.FindByEmail(ctx, req.Email)
+	user, err := s.userRepo.FindByEmail(ctx, s.product, req.Email)
 	if err != nil {
 		return nil, err
 	}

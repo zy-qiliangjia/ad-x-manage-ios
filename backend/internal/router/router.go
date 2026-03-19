@@ -69,8 +69,8 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 	// B4: 数据同步（被 OAuth 和 Advertiser 服务共用）
 	syncService := syncsvc.New(platformClients, tokenRepo, advRepo, campRepo, groupRepo, adRepo, log)
 
-	// B2: 用户认证
-	authService := authsvc.New(userRepo, invRepo, rdb, cfg.App.Secret)
+	// B2: 用户认证（product 隔离，来自 APP_PRODUCT 环境变量）
+	authService := authsvc.New(userRepo, invRepo, rdb, cfg.App.Secret, cfg.App.Product)
 
 	// B3: OAuth 授权（授权完成后自动触发后台同步，受额度限制）
 	oauthService := oauthsvc.New(platformClients, tokenRepo, advRepo, userRepo, syncService, rdb, log)

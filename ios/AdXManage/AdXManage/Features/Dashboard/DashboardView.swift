@@ -81,7 +81,6 @@ struct DashboardView: View {
             }
         }
         .background(AppTheme.Colors.background)
-        .ignoresSafeArea(edges: appState.isLoggedIn ? .top : [])
         .refreshable { if appState.isLoggedIn { await vm.load() } }
         .alert("加载失败", isPresented: Binding(
             get: { vm.error != nil },
@@ -111,74 +110,73 @@ struct DashboardView: View {
     // MARK: - 渐变 Header
 
     private var headerSection: some View {
-        ZStack(alignment: .bottom) {
+        VStack(spacing: AppTheme.Spacing.lg) {
+            // 标题行
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("掌上AD")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text("广告聚合管理平台")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.white.opacity(0.75))
+                }
+                Spacer()
+                // 更新时间
+                HStack(spacing: 6) {
+                    if vm.isLoading {
+                        ProgressView().scaleEffect(0.6).tint(.white)
+                    } else {
+                        Circle()
+                            .fill(AppTheme.Colors.success)
+                            .frame(width: 7, height: 7)
+                    }
+                    Text(vm.lastFetchedLabel.map { "更新于 \($0)" } ?? "数据已更新")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.8))
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(.white.opacity(0.15))
+                .clipShape(Capsule())
+            }
+
+            // 平台筛选 Tab（全部 / TikTok）
+            HStack(spacing: AppTheme.Spacing.sm) {
+                platformTab(title: "全部平台", platform: nil)
+                platformTab(title: "TikTok", platform: .tiktok, dot: AppTheme.Colors.tiktokRed)
+            }
+
+            // 日期范围筛选 Chip
+            HStack {
+                Button { showDatePicker = true } label: {
+                    HStack(spacing: 6) {
+                        Text("\(vm.dateFilter.label)  \(vm.dateFilter.subtitle)")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(AppTheme.Colors.primary)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(AppTheme.Colors.primary)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(AppTheme.Colors.surface)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                Spacer()
+            }
+        }
+        .padding(.horizontal, AppTheme.Spacing.xl)
+        .padding(.top, AppTheme.Spacing.xl)
+        .padding(.bottom, AppTheme.Spacing.xl)
+        .background {
             LinearGradient(
                 colors: [AppTheme.Colors.primary, Color(red: 0.49, green: 0.23, blue: 0.93)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            .ignoresSafeArea(edges: appState.isLoggedIn ? .top : [])
-
-            VStack(spacing: AppTheme.Spacing.lg) {
-                // 标题行
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("AdX Manage")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundStyle(.white)
-                        Text("广告聚合管理平台")
-                            .font(.system(size: 13))
-                            .foregroundStyle(.white.opacity(0.75))
-                    }
-                    Spacer()
-                    // 更新时间
-                    HStack(spacing: 6) {
-                        if vm.isLoading {
-                            ProgressView().scaleEffect(0.6).tint(.white)
-                        } else {
-                            Circle()
-                                .fill(AppTheme.Colors.success)
-                                .frame(width: 7, height: 7)
-                        }
-                        Text(vm.lastFetchedLabel.map { "更新于 \($0)" } ?? "数据已更新")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.white.opacity(0.8))
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(.white.opacity(0.15))
-                    .clipShape(Capsule())
-                }
-
-                // 平台筛选 Tab（全部 / TikTok）
-                HStack(spacing: AppTheme.Spacing.sm) {
-                    platformTab(title: "全部平台", platform: nil)
-                    platformTab(title: "TikTok", platform: .tiktok, dot: AppTheme.Colors.tiktokRed)
-                }
-
-                // 日期范围筛选 Chip
-                HStack {
-                    Button { showDatePicker = true } label: {
-                        HStack(spacing: 6) {
-                            Text("\(vm.dateFilter.label)  \(vm.dateFilter.subtitle)")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(AppTheme.Colors.primary)
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(AppTheme.Colors.primary)
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(AppTheme.Colors.surface)
-                        .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    Spacer()
-                }
-            }
-            .padding(.horizontal, AppTheme.Spacing.xl)
-            .padding(.top, appState.isLoggedIn ? AppTheme.Spacing.xl : 36)
-            .padding(.bottom, AppTheme.Spacing.xl)
+            .ignoresSafeArea(edges: .top)
         }
     }
 

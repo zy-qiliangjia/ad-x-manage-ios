@@ -67,8 +67,15 @@ func main() {
 	db.Exec(`ALTER TABLE ad_groups DROP INDEX uk_platform_adgroup`)
 	db.Exec(`ALTER TABLE ads DROP INDEX uk_platform_ad`)
 
+	// 先将 users 表 email 单列唯一索引去掉，后续改为 (product, email) 复合唯一索引
+	// GORM AutoMigrate 只增不删索引，需手动 DROP
+	fmt.Println("dropping old email unique index on users if exists...")
+	db.Exec(`ALTER TABLE users DROP INDEX idx_users_email`)
+	db.Exec(`ALTER TABLE users DROP INDEX udx_users_email`)
+
 	// 先为 users 表加列（不带唯一索引），以便存量数据补填后再建索引
-	fmt.Println("adding invite_code / quota columns if needed...")
+	fmt.Println("adding invite_code / quota / product columns if needed...")
+	// invite_code 列
 	var inviteColCount int64
 	db.Raw(`SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
 		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'
@@ -77,12 +84,28 @@ func main() {
 		if err := db.Exec(`ALTER TABLE users
 			ADD COLUMN invite_code VARCHAR(20) NOT NULL DEFAULT '',
 			ADD COLUMN quota       INT         NOT NULL DEFAULT 5`).Error; err != nil {
-			fmt.Fprintf(os.Stderr, "add columns error: %v\n", err)
+			fmt.Fprintf(os.Stderr, "add invite_code/quota columns error: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("columns added")
+		fmt.Println("invite_code/quota columns added")
 	} else {
-		fmt.Println("columns already exist, skipping")
+		fmt.Println("invite_code column already exists, skipping")
+	}
+
+	// product 列
+	var productColCount int64
+	db.Raw(`SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+		WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'
+		AND COLUMN_NAME = 'product'`).Scan(&productColCount)
+	if productColCount == 0 {
+		if err := db.Exec(`ALTER TABLE users
+			ADD COLUMN product VARCHAR(50) NOT NULL DEFAULT ''`).Error; err != nil {
+			fmt.Fprintf(os.Stderr, "add product column error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("product column added")
+	} else {
+		fmt.Println("product column already exists, skipping")
 	}
 
 	// 补填 invite_code（必须在建唯一索引之前完成）
@@ -105,6 +128,19 @@ func main() {
 		db.Model(&entity.User{}).Where("id = ?", u.ID).Updates(updates)
 	}
 	fmt.Printf("backfilled %d users\n", len(users))
+
+	// 为存量用户补填 product（必须在建复合唯一索引之前完成）
+	fmt.Println("backfilling product for existing users...")
+	db.Model(&entity.User{}).Where("product = ''").Update("product", "adpilot")
+
+	// 为存量用户回填 used_quota（按实际广告主数计算）
+	fmt.Println("backfilling used_quota for existing users...")
+	db.Exec(`UPDATE users u
+		SET used_quota = (
+			SELECT COUNT(*) FROM advertisers a
+			WHERE a.user_id = u.id AND a.status = 1
+		)
+		WHERE used_quota = 0`)
 
 	// 再执行 AutoMigrate（此时 invite_code 已全部不重复，可安全建唯一索引）
 	fmt.Println("running migrations...")

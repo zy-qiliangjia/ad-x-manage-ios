@@ -13,11 +13,12 @@ import (
 // Repository 定义用户数据访问接口。
 type Repository interface {
 	Create(ctx context.Context, user *entity.User) error
-	FindByEmail(ctx context.Context, email string) (*entity.User, error)
+	FindByEmail(ctx context.Context, product, email string) (*entity.User, error)
 	FindByID(ctx context.Context, id uint64) (*entity.User, error)
 	FindByInviteCode(ctx context.Context, code string) (*entity.User, error)
 	UpdateLastLoginAt(ctx context.Context, id uint64, t time.Time) error
 	AddQuota(ctx context.Context, id uint64, delta int) error
+	SetUsedQuota(ctx context.Context, id uint64, count int) error
 }
 
 type repo struct {
@@ -32,9 +33,10 @@ func (r *repo) Create(ctx context.Context, user *entity.User) error {
 	return r.db.WithContext(ctx).Create(user).Error
 }
 
-func (r *repo) FindByEmail(ctx context.Context, email string) (*entity.User, error) {
+// FindByEmail 按 product + email 查询，确保跨产品数据隔离。
+func (r *repo) FindByEmail(ctx context.Context, product, email string) (*entity.User, error) {
 	var u entity.User
-	err := r.db.WithContext(ctx).Where("email = ?", email).First(&u).Error
+	err := r.db.WithContext(ctx).Where("product = ? AND email = ?", product, email).First(&u).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -56,6 +58,7 @@ func (r *repo) FindByID(ctx context.Context, id uint64) (*entity.User, error) {
 	return &u, nil
 }
 
+// FindByInviteCode 邀请码全局唯一，无需 product 过滤。
 func (r *repo) FindByInviteCode(ctx context.Context, code string) (*entity.User, error) {
 	var u entity.User
 	err := r.db.WithContext(ctx).Where("invite_code = ?", code).First(&u).Error
@@ -73,6 +76,14 @@ func (r *repo) UpdateLastLoginAt(ctx context.Context, id uint64, t time.Time) er
 		Model(&entity.User{}).
 		Where("id = ?", id).
 		Update("last_login_at", t).Error
+}
+
+// SetUsedQuota 将已用额度更新为指定值（授权/解绑后重新计算后调用）。
+func (r *repo) SetUsedQuota(ctx context.Context, id uint64, count int) error {
+	return r.db.WithContext(ctx).
+		Model(&entity.User{}).
+		Where("id = ?", id).
+		Update("used_quota", count).Error
 }
 
 // AddQuota 原子性增加（或减少）用户的账号额度。

@@ -20,9 +20,10 @@ type ContactConfig struct {
 }
 
 type AppConfig struct {
-	Env    string `envconfig:"APP_ENV"    default:"development"`
-	Port   string `envconfig:"APP_PORT"   default:"8080"`
-	Secret string `envconfig:"APP_SECRET" required:"true"`
+	Env     string `envconfig:"APP_ENV"     default:"development"`
+	Port    string `envconfig:"APP_PORT"    default:"8080"`
+	Secret  string `envconfig:"APP_SECRET"  required:"true"`
+	Product string `envconfig:"APP_PRODUCT" default:"adpilot"`
 }
 
 type DBConfig struct {

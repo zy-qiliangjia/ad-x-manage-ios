@@ -13,6 +13,11 @@ import (
 	adsvc "ad-x-manage/backend/internal/service/ad"
 )
 
+// UpdateStatusRequest 广告状态修改请求。
+type UpdateStatusRequest struct {
+	Action string `json:"action" binding:"required,oneof=enable pause"`
+}
+
 type Handler struct {
 	svc adsvc.Service
 }
@@ -79,6 +84,35 @@ func (h *Handler) ListAll(c *gin.Context) {
 		Total:    total,
 		HasMore:  int64(req.Page*req.PageSize) < total,
 	})
+}
+
+// UpdateStatus 开启或暂停广告
+// PATCH /api/v1/ads/:id/status
+func (h *Handler) UpdateStatus(c *gin.Context) {
+	adID, err := parseID(c, "id")
+	if err != nil {
+		response.BadRequest(c, "无效的广告 ID")
+		return
+	}
+	var req UpdateStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	userID := middleware.GetUserID(c)
+
+	if err := h.svc.UpdateStatus(c.Request.Context(), userID, adID, req.Action); err != nil {
+		switch {
+		case errors.Is(err, adsvc.ErrNotFound):
+			response.BadRequest(c, "广告不存在")
+		case errors.Is(err, adsvc.ErrForbidden):
+			response.Forbidden(c, "无权限操作该广告")
+		default:
+			response.ServerError(c, "更新广告状态失败")
+		}
+		return
+	}
+	response.OK(c, nil)
 }
 
 func parseID(c *gin.Context, param string) (uint64, error) {

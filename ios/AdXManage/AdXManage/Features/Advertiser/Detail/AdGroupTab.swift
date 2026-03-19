@@ -128,6 +128,8 @@ final class AdGroupListViewModel: ObservableObject {
             page   += 1
         } catch { self.error = message(error) }
         isLoadingMore = false
+        metricsLoadedKey = nil // 新页加载后重新拉取新增条目
+        await loadAdGroupMetrics()
     }
 
     func updateBudget(item: AdGroupItem, budget: Double) async {
@@ -208,7 +210,9 @@ struct AdGroupListView: View {
     private var list: some View {
         List {
             ForEach(vm.items) { item in
-                AdGroupRow(item: item, isUpdatingStatus: vm.updatingStatusID == item.id) {
+                AdGroupRow(item: item,
+                           metrics: vm.adGroupMetrics[item.adgroupID],
+                           isUpdatingStatus: vm.updatingStatusID == item.id) {
                         vm.statusConfirmTarget = item
                     }
                     .swipeActions(edge: .leading) {
@@ -256,6 +260,7 @@ struct AdGroupListView: View {
 
 struct AdGroupRow: View {
     let item: AdGroupItem
+    var metrics: AdGroupReportMetrics? = nil
     let isUpdatingStatus: Bool
     var onToggleStatus: () -> Void
 
@@ -294,7 +299,7 @@ struct AdGroupRow: View {
     private var spendView: some View {
         VStack(alignment: .leading, spacing: 1) {
             Text("消耗").font(.caption2).foregroundStyle(.tertiary)
-            Text(item.spend.formatted(.number.precision(.fractionLength(2)))).font(.caption.weight(.medium))
+            Text((metrics?.spend ?? item.spend).formatted(.number.precision(.fractionLength(2)))).font(.caption.weight(.medium))
         }
     }
 

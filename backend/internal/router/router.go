@@ -80,7 +80,7 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 	adGroupService := adgroupsvc.New(groupRepo, advRepo, tokenRepo, logRepo, platformClients, log)
 
 	// B8: 广告
-	adService := adsvc.New(adRepo, groupRepo, advRepo)
+	adService := adsvc.New(adRepo, groupRepo, advRepo, tokenRepo, logRepo, platformClients, log)
 
 	// B9: 操作日志
 	operationLogService := operationlogsvc.New(logRepo, advRepo)
@@ -162,8 +162,9 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 		protected.PATCH("/adgroups/:id/budget", adGroupHandler.UpdateBudget)
 		protected.PATCH("/adgroups/:id/status", adGroupHandler.UpdateStatus)
 
-		// B8: 广告全量列表
+		// B8: 广告全量列表 + 状态操作
 		protected.GET("/ads", adHandler.ListAll)
+		protected.PATCH("/ads/:id/status", adHandler.UpdateStatus)
 
 		// B9: 操作日志
 		protected.GET("/operation-logs", operationLogHandler.List)
@@ -174,6 +175,7 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 		protected.GET("/stats/report", statsHandler.GetReport)
 		protected.GET("/stats/adgroup-report", statsHandler.GetAdGroupReport)
 		protected.GET("/stats/campaign-report", statsHandler.GetCampaignReport)
+		protected.GET("/stats/ad-report", statsHandler.GetAdReport)
 	}
 
 	return r

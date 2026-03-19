@@ -214,7 +214,9 @@ struct CampaignListView: View {
     private var list: some View {
         List {
             ForEach(vm.items) { item in
-                CampaignRow(item: item, isUpdatingStatus: vm.updatingStatusID == item.id)
+                CampaignRow(item: item,
+                            metrics: vm.campaignMetrics[item.campaignID],
+                            isUpdatingStatus: vm.updatingStatusID == item.id)
                     // 左滑：改预算
                     .swipeActions(edge: .leading) {
                         Button { vm.budgetTarget = item } label: {
@@ -264,6 +266,7 @@ struct CampaignListView: View {
 
 struct CampaignRow: View {
     let item: CampaignItem
+    var metrics: CampaignReportMetrics? = nil
     let isUpdatingStatus: Bool
 
     var body: some View {
@@ -289,7 +292,7 @@ struct CampaignRow: View {
                            value: item.budgetMode == "BUDGET_MODE_INFINITE"
                                ? "不限" : item.budget.formatted(.number.precision(.fractionLength(2))))
                 metricView(label: "消耗",
-                           value: item.spend.formatted(.number.precision(.fractionLength(2))))
+                           value: (metrics?.spend ?? item.spend).formatted(.number.precision(.fractionLength(2))))
             }
         }
         .padding(.vertical, 4)

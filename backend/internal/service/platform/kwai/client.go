@@ -502,6 +502,20 @@ func (c *Client) GetCampaignReport(_ string, _ string, campaignIDs []string, _, 
 	return items, nil
 }
 
+// GetAdReport 快手广告报表（待实现，返回零值占位）。
+func (c *Client) GetAdReport(_ string, _ string, adIDs []string, _, _ string) ([]*platform.AdReportItem, error) {
+	items := make([]*platform.AdReportItem, 0, len(adIDs))
+	for _, id := range adIDs {
+		items = append(items, &platform.AdReportItem{AdID: id})
+	}
+	return items, nil
+}
+
+// UpdateAdStatus 快手广告状态更新（待实现）。
+func (c *Client) UpdateAdStatus(_, _, _, _ string) error {
+	return nil
+}
+
 func (c *Client) do(req *http.Request, out any) error {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {

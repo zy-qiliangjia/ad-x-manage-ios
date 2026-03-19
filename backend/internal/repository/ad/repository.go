@@ -15,6 +15,7 @@ type Repository interface {
 	FindByAdvertiserID(ctx context.Context, advertiserID uint64, adgroupID uint64, keyword string, page, pageSize int) ([]*entity.Ad, int64, error)
 	FindByAdvertiserIDs(ctx context.Context, advertiserIDs []uint64, keyword string, page, pageSize int) ([]*entity.Ad, int64, error)
 	FindByID(ctx context.Context, id uint64) (*entity.Ad, error)
+	UpdateStatus(ctx context.Context, id uint64, status string) error
 }
 
 type repo struct{ db *gorm.DB }
@@ -62,6 +63,12 @@ func (r *repo) FindByID(ctx context.Context, id uint64) (*entity.Ad, error) {
 		return nil, nil
 	}
 	return &a, err
+}
+
+func (r *repo) UpdateStatus(ctx context.Context, id uint64, status string) error {
+	return r.db.WithContext(ctx).Model(&entity.Ad{}).
+		Where("id = ?", id).
+		Update("status", status).Error
 }
 
 // FindByAdvertiserIDs 跨广告主分页查询广告列表，支持关键词搜索。

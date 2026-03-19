@@ -61,6 +61,14 @@ type Client interface {
 	// GetCampaignReport 拉取逐推广系列报表明细（per-campaign）。
 	// campaignIDs 为平台推广系列 ID 列表，返回各推广系列指标明细。
 	GetCampaignReport(accessToken, advertiserID string, campaignIDs []string, startDate, endDate string) ([]*CampaignReportItem, error)
+
+	// GetAdReport 拉取逐广告报表明细（per-ad）。
+	// adIDs 为平台广告 ID 列表，返回各广告指标明细。
+	GetAdReport(accessToken, advertiserID string, adIDs []string, startDate, endDate string) ([]*AdReportItem, error)
+
+	// ── 广告写操作 ─────────────────────────────────────────
+	// UpdateAdStatus 开启或暂停广告（status: "ENABLE"/"DISABLE" for TikTok, "ONLINE"/"OFFLINE" for Kwai）
+	UpdateAdStatus(accessToken, advertiserID, adID, status string) error
 }
 
 // ── 共享数据结构 ───────────────────────────────────────────────
@@ -146,6 +154,16 @@ type AdGroupReportItem struct {
 // CampaignReportItem 单推广系列报表明细指标。
 type CampaignReportItem struct {
 	CampaignID  string
+	Spend       float64
+	Clicks      int64
+	Impressions int64
+	Conversion  int64
+	CPA         float64
+}
+
+// AdReportItem 单广告报表明细指标。
+type AdReportItem struct {
+	AdID        string
 	Spend       float64
 	Clicks      int64
 	Impressions int64

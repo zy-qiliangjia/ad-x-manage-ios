@@ -705,8 +705,8 @@ https://business-api.tiktok.com/open_api/v1.3/report/integrated/get?page=1&data_
 补充部分(针对第三方逻辑)：
 - 需完善相关后端服务
 - 当前关于广告层级-区别不大-主要是数据指标和维度的区别，不能互相影响
-- 接口调用有时间和频率限制，且 advertiser_id 一次最多支持5个，如果广告主过多的话，需要拆分，频率限制 1s 10次
-- 
+- 接口调用有时间和频率限制，且 advertiser_id 一次最多支持5个，如果广告主过多的话，需要拆分，频率限制 1s 10次请求
+- 数据缓存15分钟
 - 调用示例： tiktok 平台
 - 调用示例
 ```
@@ -1045,3 +1045,1244 @@ https://business-api.tiktok.com/open_api/v1.3/report/integrated/get?page=1&data_
     }
 }
 ```
+
+# 检查下推广系列的数据 消耗/点击/... 取值是否有问题
+当前通过接口拉取的是有数据，但是每行显示的消耗是0
+
+# 推广系列需要汇总数据，参考
+背景：当前通过调用第三方接口，有汇总数据有具体的值，但界面显示0，需要检查下逻辑是否正确
+其他说明： 
+- 第三方接口调用有时间和频率限制，且 advertiser_id 一次最多支持5个，如果广告主过多的话，需要拆分，频率限制 1s 10次请求
+- 需要缓存相关数据15分钟，支持自定义时间范围
+- 调用示例(tiktok  平台)
+```
+https://business-api.tiktok.com/open_api/v1.3/report/integrated/get?page=1&data_level=AUCTION_CAMPAIGN&report_type=BASIC&dimensions=[%22campaign_id%22]&metrics=[%22clicks%22,%22spend%22,%22conversion%22,%22cost_per_conversion%22,%22impressions%22,%22skan_click_time_cost_per_conversion%22]&page_size=1000&start_date=2026-02-17&end_date=2026-03-17&enable_total_metrics=true&advertiser_ids=[%227582793237962817552%22,%227363465639475871761%22,%227363465671117750289%22]
+```
+- 返回示例
+```
+{
+    "code": 0,
+    "message": "OK",
+    "request_id": "20260319112548C4D3D71CAF7833258D2C",
+    "data": {
+        "total_metrics": {
+            "impressions": "1017",
+            "skan_click_time_cost_per_conversion": "0.00",
+            "currency": "-",
+            "clicks": "68",
+            "spend": "5.57",
+            "timezone": "-",
+            "conversion": "0",
+            "advertiser_id": "-",
+            "cost_per_conversion": "0.00"
+        },
+        "list": [
+            {
+                "metrics": {
+                    "impressions": "1017",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "clicks": "68",
+                    "spend": "5.57",
+                    "timezone": "Asia/Singapore",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "cost_per_conversion": "0.00"
+                },
+                "dimensions": {
+                    "campaign_id": "1856737075932241"
+                }
+            },
+            {
+                "metrics": {
+                    "impressions": "0",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "clicks": "0",
+                    "spend": "0.00",
+                    "timezone": "Asia/Singapore",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "cost_per_conversion": "0.00"
+                },
+                "dimensions": {
+                    "campaign_id": "1854823565937825"
+                }
+            },
+            {
+                "metrics": {
+                    "impressions": "0",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "clicks": "0",
+                    "spend": "0.00",
+                    "timezone": "Asia/Singapore",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "cost_per_conversion": "0.00"
+                },
+                "dimensions": {
+                    "campaign_id": "1854818773396593"
+                }
+            },
+            {
+                "metrics": {
+                    "impressions": "0",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "clicks": "0",
+                    "spend": "0.00",
+                    "timezone": "Asia/Singapore",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "cost_per_conversion": "0.00"
+                },
+                "dimensions": {
+                    "campaign_id": "1853626498542610"
+                }
+            },
+            {
+                "metrics": {
+                    "impressions": "0",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "clicks": "0",
+                    "spend": "0.00",
+                    "timezone": "Asia/Singapore",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "cost_per_conversion": "0.00"
+                },
+                "dimensions": {
+                    "campaign_id": "1852919338637522"
+                }
+            },
+            {
+                "metrics": {
+                    "impressions": "0",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "clicks": "0",
+                    "spend": "0.00",
+                    "timezone": "Asia/Singapore",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "cost_per_conversion": "0.00"
+                },
+                "dimensions": {
+                    "campaign_id": "1852912055994402"
+                }
+            },
+            {
+                "metrics": {
+                    "impressions": "0",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "clicks": "0",
+                    "spend": "0.00",
+                    "timezone": "Asia/Singapore",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "cost_per_conversion": "0.00"
+                },
+                "dimensions": {
+                    "campaign_id": "1852852587132273"
+                }
+            },
+            {
+                "metrics": {
+                    "impressions": "0",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "clicks": "0",
+                    "spend": "0.00",
+                    "timezone": "Asia/Singapore",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "cost_per_conversion": "0.00"
+                },
+                "dimensions": {
+                    "campaign_id": "1852851763493953"
+                }
+            },
+            {
+                "metrics": {
+                    "impressions": "0",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "clicks": "0",
+                    "spend": "0.00",
+                    "timezone": "Asia/Singapore",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "cost_per_conversion": "0.00"
+                },
+                "dimensions": {
+                    "campaign_id": "1852676475048977"
+                }
+            },
+            {
+                "metrics": {
+                    "impressions": "0",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "clicks": "0",
+                    "spend": "0.00",
+                    "timezone": "Asia/Singapore",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "cost_per_conversion": "0.00"
+                },
+                "dimensions": {
+                    "campaign_id": "1852650384568529"
+                }
+            },
+            {
+                "metrics": {
+                    "impressions": "0",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "clicks": "0",
+                    "spend": "0.00",
+                    "timezone": "Asia/Singapore",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "cost_per_conversion": "0.00"
+                },
+                "dimensions": {
+                    "campaign_id": "1852570104836129"
+                }
+            },
+            {
+                "metrics": {
+                    "impressions": "0",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "clicks": "0",
+                    "spend": "0.00",
+                    "timezone": "Asia/Singapore",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "cost_per_conversion": "0.00"
+                },
+                "dimensions": {
+                    "campaign_id": "1852450527579154"
+                }
+            },
+            {
+                "metrics": {
+                    "impressions": "0",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "clicks": "0",
+                    "spend": "0.00",
+                    "timezone": "Asia/Singapore",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "cost_per_conversion": "0.00"
+                },
+                "dimensions": {
+                    "campaign_id": "1852372422277137"
+                }
+            },
+            {
+                "metrics": {
+                    "impressions": "0",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "clicks": "0",
+                    "spend": "0.00",
+                    "timezone": "Asia/Shanghai",
+                    "conversion": "0",
+                    "advertiser_id": "7363465671117750289",
+                    "cost_per_conversion": "0.00"
+                },
+                "dimensions": {
+                    "campaign_id": "1816965017370690"
+                }
+            },
+            {
+                "metrics": {
+                    "impressions": "0",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "clicks": "0",
+                    "spend": "0.00",
+                    "timezone": "Asia/Shanghai",
+                    "conversion": "0",
+                    "advertiser_id": "7363465639475871761",
+                    "cost_per_conversion": "0.00"
+                },
+                "dimensions": {
+                    "campaign_id": "1803543721260065"
+                }
+            },
+            {
+                "metrics": {
+                    "impressions": "0",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "clicks": "0",
+                    "spend": "0.00",
+                    "timezone": "Asia/Shanghai",
+                    "conversion": "0",
+                    "advertiser_id": "7363465639475871761",
+                    "cost_per_conversion": "0.00"
+                },
+                "dimensions": {
+                    "campaign_id": "1803458949522434"
+                }
+            },
+            {
+                "metrics": {
+                    "impressions": "0",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "clicks": "0",
+                    "spend": "0.00",
+                    "timezone": "Asia/Shanghai",
+                    "conversion": "0",
+                    "advertiser_id": "7363465639475871761",
+                    "cost_per_conversion": "0.00"
+                },
+                "dimensions": {
+                    "campaign_id": "1803455200956449"
+                }
+            },
+            {
+                "metrics": {
+                    "impressions": "0",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "clicks": "0",
+                    "spend": "0.00",
+                    "timezone": "Asia/Shanghai",
+                    "conversion": "0",
+                    "advertiser_id": "7363465639475871761",
+                    "cost_per_conversion": "0.00"
+                },
+                "dimensions": {
+                    "campaign_id": "1803362186625137"
+                }
+            },
+            {
+                "metrics": {
+                    "impressions": "0",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "clicks": "0",
+                    "spend": "0.00",
+                    "timezone": "Asia/Shanghai",
+                    "conversion": "0",
+                    "advertiser_id": "7363465639475871761",
+                    "cost_per_conversion": "0.00"
+                },
+                "dimensions": {
+                    "campaign_id": "1803360662064161"
+                }
+            }
+        ],
+        "page_info": {
+            "total_page": 1,
+            "page_size": 19,
+            "page": 1,
+            "total_number": 19
+        }
+    }
+}
+```
+
+# 推广系列操作暂停/开启 失败，需要调整
+背景：当前在推广系列层面操作暂停报错
+错误：
+```
+⬅️ 502 http://localhost:8080/api/v1/campaigns/309/status
+   Body: {"code":1003,"message":"修改状态失败: platform update status: tiktok update campaign status error 40002: operation_status: Missing data for required field."}
+```
+参考tiktok 平台文档：https://business-api.tiktok.com/portal/docs?id=1739320994354178
+
+
+---
+
+
+
+# ios端 点击下方tab 切换到 广告，需要调整布局同广告组布局一样，只是维度不一样
+背景：当前样式不统，其主要是账号/推广系列/广告组/广告，布局应该保持基本一样，只是取的数据维度不一样，现需要作出调整,当前需要按广告维度划分
+样式部分：
+- 顶部汇总支持 日期筛选
+- 每行显示消耗，点击，展示，转化，cpa
+- 包含暂停投放,调整预算操作
+- 通过调用接口获取 相关数据 -进行本地缓存 30分钟
+补充部分(针对第三方逻辑)：
+- 需完善相关后端服务，支持日期范围的筛选调整
+- 需注意自行拆分当前账号下的 advertiser_id, 因为每次查询数据 最多只支持5个advertiser_id,tiktok 平台接口限制的
+- 当前关于广告层级-区别不大-主要是数据指标和维度的区别，不能互相影响
+- 接口调用有时间和频率限制，且 advertiser_id 一次最多支持5个，如果广告主过多的话，需要拆分，频率限制 1s 10次请求
+- 数据缓存15分钟
+- 暂停操作相关参考文档：https://business-api.tiktok.com/portal/docs?id=1739953422970882
+- 调用示例： tiktok 平台
+```
+https://business-api.tiktok.com/open_api/v1.3/report/integrated/get?page=1&data_level=AUCTION_AD&report_type=BASIC&dimensions=[%22ad_id%22]&metrics=[%22clicks%22,%22spend%22,%22conversion%22,%22cost_per_conversion%22,%22impressions%22,%22skan_click_time_cost_per_conversion%22]&page_size=1000&start_date=2026-02-18&end_date=2026-03-18&enable_total_metrics=true&advertiser_ids=[%227582793237962817552%22,%227363465639475871761%22,%227363465671117750289%22]
+```
+返回示例：
+```
+{
+    "code": 0,
+    "message": "OK",
+    "request_id": "20260319141835F8814F5F3EB1882DA5AA",
+    "data": {
+        "page_info": {
+            "total_number": 52,
+            "total_page": 1,
+            "page_size": 52,
+            "page": 1
+        },
+        "list": [
+            {
+                "dimensions": {
+                    "ad_id": "1858179050257490"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1858085066481714"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1856911543174433"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1856911145333249"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1856910776536146"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1856910768086337"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1856909984648337"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1856910444007697"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1856910565016609"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1856908434307409"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1856818415291506"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "1.92",
+                    "impressions": "266",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "18"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1856818415292418"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.14",
+                    "impressions": "17",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "2"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1856814974955553"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "3.51",
+                    "impressions": "733",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "48"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1856737101861009"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1856636940754098"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1856280617960593"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1856276467659841"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1856276386466913"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1856276344971330"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1856276287139921"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1856082985547890"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1855556091311105"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1855372950169601"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1854818944661697"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1853626595594258"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1853626498542642"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1853626498543682"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1853626498543698"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1853626498543714"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1852924040840370"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1852994615149570"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1852920999767249"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1852919338637554"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1852912084259841"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1852852587134289"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1852851763493985"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1852676475049009"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1852650384568561"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1852570104837185"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1852450527579186"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1852372604361825"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Singapore",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7582793237962817552",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1816965019152434"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Shanghai",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7363465671117750289",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1803543725881377"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Shanghai",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7363465639475871761",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1803543725887569"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Shanghai",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7363465639475871761",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1803458951349297"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Shanghai",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7363465639475871761",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1803458951354401"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Shanghai",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7363465639475871761",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1803455202345010"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Shanghai",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7363465639475871761",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1803455202350114"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Shanghai",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7363465639475871761",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1803362188290162"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Shanghai",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7363465639475871761",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1803362190015521"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Shanghai",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7363465639475871761",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1803360662065201"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Shanghai",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7363465639475871761",
+                    "clicks": "0"
+                }
+            },
+            {
+                "dimensions": {
+                    "ad_id": "1803360662070305"
+                },
+                "metrics": {
+                    "cost_per_conversion": "0.00",
+                    "currency": "USD",
+                    "timezone": "Asia/Shanghai",
+                    "skan_click_time_cost_per_conversion": "0.00",
+                    "spend": "0.00",
+                    "impressions": "0",
+                    "conversion": "0",
+                    "advertiser_id": "7363465639475871761",
+                    "clicks": "0"
+                }
+            }
+        ],
+        "total_metrics": {
+            "cost_per_conversion": "0.00",
+            "currency": "-",
+            "timezone": "-",
+            "skan_click_time_cost_per_conversion": "0.00",
+            "spend": "5.57",
+            "impressions": "1016",
+            "conversion": "0",
+            "advertiser_id": "-",
+            "clicks": "68"
+        }
+    }
+}
+```
+

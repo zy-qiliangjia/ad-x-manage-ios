@@ -87,6 +87,10 @@ final class AdDetailService {
         return try await client.requestPage(.operationLogs, queryParams: params)
     }
 
+    func updateAdStatus(id: UInt64, action: String) async throws {
+        try await client.requestVoid(.adStatus(id: Int(id)), body: UpdateStatusBody(action: action))
+    }
+
     // MARK: - 广告
 
     func ads(advertiserID: UInt64, adgroupID: UInt64 = 0, keyword: String = "", page: Int, pageSize: Int = 20)

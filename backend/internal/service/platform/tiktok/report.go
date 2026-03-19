@@ -521,6 +521,141 @@ func (c *Client) fetchAdGroupBatch(ctx context.Context, accessToken, advertiserI
 	return items, nil
 }
 
+// ── 逐广告报表（per-ad）────────────────────────────────────────
+
+const adReportCacheTTL = 15 * time.Minute
+
+// adReportCacheKey 生成单广告报表缓存 key。
+// 格式：stats:report:ad:tiktok:{advertiser_id}:{ad_id}:{start_date}:{end_date}
+func adReportCacheKey(advertiserID, adID, startDate, endDate string) string {
+	return fmt.Sprintf("stats:report:ad:tiktok:%s:%s:%s:%s", advertiserID, adID, startDate, endDate)
+}
+
+// GetAdReport 返回 adIDs 中每个广告在 [startDate, endDate] 内的明细指标。
+// 优先读 Redis 缓存（per-ad key），未命中时调用 TikTok Integrated Report API。
+func (c *Client) GetAdReport(accessToken, advertiserID string, adIDs []string, startDate, endDate string) ([]*platform.AdReportItem, error) {
+	if len(adIDs) == 0 {
+		return nil, nil
+	}
+
+	ctx := context.Background()
+	result := make(map[string]*platform.AdReportItem, len(adIDs))
+	var uncached []string
+
+	// 1. 从缓存读取已有结果
+	for _, id := range adIDs {
+		if c.rdb != nil {
+			if raw, err := c.rdb.Get(ctx, adReportCacheKey(advertiserID, id, startDate, endDate)).Bytes(); err == nil {
+				var item platform.AdReportItem
+				if jsonErr := json.Unmarshal(raw, &item); jsonErr == nil {
+					result[id] = &item
+					continue
+				}
+			}
+		}
+		uncached = append(uncached, id)
+	}
+
+	// 2. 批量拉取未命中缓存的 ID
+	if len(uncached) > 0 {
+		items, err := c.fetchAdBatch(ctx, accessToken, advertiserID, uncached, startDate, endDate)
+		if err == nil {
+			for _, item := range items {
+				result[item.AdID] = item
+				if c.rdb != nil {
+					if raw, err := json.Marshal(item); err == nil {
+						_ = c.rdb.Set(ctx, adReportCacheKey(advertiserID, item.AdID, startDate, endDate), raw, adReportCacheTTL).Err()
+					}
+				}
+			}
+		}
+	}
+
+	// 3. 按原始顺序输出，缺失的补零值
+	out := make([]*platform.AdReportItem, 0, len(adIDs))
+	for _, id := range adIDs {
+		if item, ok := result[id]; ok {
+			out = append(out, item)
+		} else {
+			out = append(out, &platform.AdReportItem{AdID: id})
+		}
+	}
+	return out, nil
+}
+
+// fetchAdBatch 调用 TikTok Integrated Report API 拉取广告明细数据。
+func (c *Client) fetchAdBatch(ctx context.Context, accessToken, advertiserID string, adIDs []string, startDate, endDate string) ([]*platform.AdReportItem, error) {
+	idsJSON, _ := json.Marshal(adIDs)
+	body := map[string]any{
+		"advertiser_id": advertiserID,
+		"data_level":    "AUCTION_AD",
+		"report_type":   "BASIC",
+		"dimensions":    []string{"ad_id"},
+		"metrics":       []string{"spend", "clicks", "impressions", "conversion", "cost_per_conversion"},
+		"filtering": []map[string]any{
+			{"field_name": "ad_ids", "filter_type": "IN", "filter_value": string(idsJSON)},
+		},
+		"start_date": startDate,
+		"end_date":   endDate,
+		"page":       1,
+		"page_size":  1000,
+	}
+
+	var resp struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			List []struct {
+				Dimensions struct {
+					AdID string `json:"ad_id"`
+				} `json:"dimensions"`
+				Metrics struct {
+					Spend             string `json:"spend"`
+					Clicks            string `json:"clicks"`
+					Impressions       string `json:"impressions"`
+					Conversion        string `json:"conversion"`
+					CostPerConversion string `json:"cost_per_conversion"`
+				} `json:"metrics"`
+			} `json:"list"`
+		} `json:"data"`
+	}
+
+	b, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base()+"/open_api/"+apiVersion+"/report/integrated/get/", bytes.NewReader(b))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Access-Token", accessToken)
+	if err := c.do(req, &resp); err != nil {
+		return nil, fmt.Errorf("tiktok ad report api: %w", err)
+	}
+	if resp.Code != 0 {
+		return nil, fmt.Errorf("tiktok ad report api error %d: %s", resp.Code, resp.Message)
+	}
+
+	items := make([]*platform.AdReportItem, 0, len(resp.Data.List))
+	for _, row := range resp.Data.List {
+		spend, _ := strconv.ParseFloat(row.Metrics.Spend, 64)
+		clicks, _ := strconv.ParseInt(row.Metrics.Clicks, 10, 64)
+		impressions, _ := strconv.ParseInt(row.Metrics.Impressions, 10, 64)
+		conversion, _ := strconv.ParseInt(row.Metrics.Conversion, 10, 64)
+		cpa, _ := strconv.ParseFloat(row.Metrics.CostPerConversion, 64)
+		items = append(items, &platform.AdReportItem{
+			AdID:        row.Dimensions.AdID,
+			Spend:       spend,
+			Clicks:      clicks,
+			Impressions: impressions,
+			Conversion:  conversion,
+			CPA:         cpa,
+		})
+	}
+	return items, nil
+}
+
 // sortedKey 返回 ID 排序后以逗号拼接的字符串（供缓存 key 使用）。
 func sortedKey(ids []string) string {
 	sorted := make([]string, len(ids))
@@ -592,21 +727,25 @@ func (c *Client) GetCampaignReport(accessToken, advertiserID string, campaignIDs
 }
 
 // fetchCampaignBatch 调用 TikTok Integrated Report API 拉取推广系列明细数据。
+// 直接按广告主拉取全量推广系列数据（AUCTION_CAMPAIGN 不支持 filtering.campaign_ids），
+// 后续通过 campaign_id 维度做本地匹配过滤。
 func (c *Client) fetchCampaignBatch(ctx context.Context, accessToken, advertiserID string, campaignIDs []string, startDate, endDate string) ([]*platform.CampaignReportItem, error) {
-	idsJSON, _ := json.Marshal(campaignIDs)
+	// 构建仅筛选指定 campaign_ids 的 filtering 参数（使用 campaign_id 字段名而非 campaign_ids）
+	campaignIDSet := make(map[string]bool, len(campaignIDs))
+	for _, id := range campaignIDs {
+		campaignIDSet[id] = true
+	}
+
 	body := map[string]any{
 		"advertiser_id": advertiserID,
 		"data_level":    "AUCTION_CAMPAIGN",
 		"report_type":   "BASIC",
 		"dimensions":    []string{"campaign_id"},
 		"metrics":       []string{"spend", "clicks", "impressions", "conversion", "cost_per_conversion"},
-		"filtering": []map[string]any{
-			{"field_name": "campaign_ids", "filter_type": "IN", "filter_value": string(idsJSON)},
-		},
-		"start_date": startDate,
-		"end_date":   endDate,
-		"page":       1,
-		"page_size":  1000,
+		"start_date":    startDate,
+		"end_date":      endDate,
+		"page":          1,
+		"page_size":     1000,
 	}
 
 	var resp struct {
@@ -647,6 +786,10 @@ func (c *Client) fetchCampaignBatch(ctx context.Context, accessToken, advertiser
 
 	items := make([]*platform.CampaignReportItem, 0, len(resp.Data.List))
 	for _, row := range resp.Data.List {
+		// 只返回请求列表中的推广系列
+		if len(campaignIDSet) > 0 && !campaignIDSet[row.Dimensions.CampaignID] {
+			continue
+		}
 		spend, _ := strconv.ParseFloat(row.Metrics.Spend, 64)
 		clicks, _ := strconv.ParseInt(row.Metrics.Clicks, 10, 64)
 		impressions, _ := strconv.ParseInt(row.Metrics.Impressions, 10, 64)

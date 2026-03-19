@@ -790,10 +790,23 @@ struct AdsAdView: View {
                 } else {
                     List {
                         ForEach(vm.items) { item in
-                            AdRow(item: item)
-                                .onAppear {
-                                    if item.id == vm.items.last?.id { Task { await vm.loadMore() } }
+                            AdRow(
+                                item: item,
+                                metrics: vm.adMetrics[item.adID],
+                                isUpdatingStatus: vm.updatingStatusID == item.id
+                            ) { vm.statusConfirmTarget = item }
+                            .swipeActions(edge: .trailing) {
+                                Button { vm.statusConfirmTarget = item } label: {
+                                    Label(
+                                        item.status.isAdActive ? "暂停" : "开启",
+                                        systemImage: item.status.isAdActive ? "pause.circle" : "play.circle"
+                                    )
                                 }
+                                .tint(item.status.isAdActive ? .orange : .green)
+                            }
+                            .onAppear {
+                                if item.id == vm.items.last?.id { Task { await vm.loadMore() } }
+                            }
                         }
                         if vm.isLoadingMore { loadingMoreRow }
                     }
@@ -807,7 +820,7 @@ struct AdsAdView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                if vm.summaryLoading {
+                if vm.summaryLoading || vm.isLoadingMetrics {
                     ProgressView().scaleEffect(0.7)
                 } else if let label = vm.lastUpdatedLabel {
                     Text("更新于 \(label)")
@@ -819,11 +832,30 @@ struct AdsAdView: View {
         .searchable(text: $vm.searchText,
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: "搜索广告 ID 或名称")
-        .alert("错误", isPresented: Binding(
+        .alert("操作失败", isPresented: Binding(
             get: { vm.error != nil }, set: { if !$0 { vm.error = nil } }
         )) {
             Button("确定", role: .cancel) { vm.error = nil }
         } message: { Text(vm.error ?? "") }
+        .confirmationDialog(
+            vm.statusConfirmTarget?.status.isAdActive == true ? "确认暂停广告？" : "确认开启广告？",
+            isPresented: Binding(
+                get: { vm.statusConfirmTarget != nil },
+                set: { if !$0 { vm.statusConfirmTarget = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let target = vm.statusConfirmTarget {
+                let isPause = target.status.isAdActive
+                Button(isPause ? "暂停" : "开启", role: isPause ? .destructive : nil) {
+                    vm.statusConfirmTarget = nil
+                    Task { await vm.updateStatus(item: target, action: isPause ? "pause" : "enable") }
+                }
+                Button("取消", role: .cancel) { vm.statusConfirmTarget = nil }
+            }
+        } message: {
+            if let target = vm.statusConfirmTarget { Text(target.adName) }
+        }
         .task { await vm.load() }
     }
 }
@@ -1329,6 +1361,9 @@ final class AllAdsViewModel: ObservableObject {
     @Published var platformFilter: Platform? { didSet { Task { await refresh() } } }
     @Published var searchText    = "" { didSet { scheduleSearch() } }
 
+    @Published var statusConfirmTarget: AdItem?  = nil
+    @Published var updatingStatusID: UInt64?     = nil
+
     private let service    = AdDetailService.shared
     private var page       = 1
     private let pageSize   = 20
@@ -1364,6 +1399,15 @@ final class AllAdsViewModel: ObservableObject {
             items += fetched; hasMore = p.hasMore; page += 1
         } catch { self.error = msg(error) }
         isLoadingMore = false
+    }
+
+    func updateStatus(item: AdItem, action: String) async {
+        updatingStatusID = item.id
+        defer { updatingStatusID = nil }
+        do {
+            try await service.updateAdStatus(id: item.id, action: action)
+            await refresh()
+        } catch { self.error = msg(error) }
     }
 
     private func scheduleSearch() {
@@ -1616,8 +1660,20 @@ struct AdsAllAdsView: View {
                 } else {
                     List {
                         ForEach(vm.items) { item in
-                            AdRow(item: item)
-                                .onAppear { if item.id == vm.items.last?.id { Task { await vm.loadMore() } } }
+                            AdRow(
+                                item: item,
+                                isUpdatingStatus: vm.updatingStatusID == item.id
+                            ) { vm.statusConfirmTarget = item }
+                            .swipeActions(edge: .trailing) {
+                                Button { vm.statusConfirmTarget = item } label: {
+                                    Label(
+                                        item.status.isAdActive ? "暂停" : "开启",
+                                        systemImage: item.status.isAdActive ? "pause.circle" : "play.circle"
+                                    )
+                                }
+                                .tint(item.status.isAdActive ? .orange : .green)
+                            }
+                            .onAppear { if item.id == vm.items.last?.id { Task { await vm.loadMore() } } }
                         }
                         if vm.isLoadingMore { loadingMoreRow }
                     }
@@ -1633,9 +1689,28 @@ struct AdsAllAdsView: View {
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: "搜索广告 ID 或名称")
         .safeAreaInset(edge: .top) { platformPicker($vm.platformFilter) }
-        .alert("加载失败", isPresented: Binding(get: { vm.error != nil }, set: { if !$0 { vm.error = nil } })) {
+        .alert("操作失败", isPresented: Binding(get: { vm.error != nil }, set: { if !$0 { vm.error = nil } })) {
             Button("确定", role: .cancel) { vm.error = nil }
         } message: { Text(vm.error ?? "") }
+        .confirmationDialog(
+            vm.statusConfirmTarget?.status.isAdActive == true ? "确认暂停广告？" : "确认开启广告？",
+            isPresented: Binding(
+                get: { vm.statusConfirmTarget != nil },
+                set: { if !$0 { vm.statusConfirmTarget = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let target = vm.statusConfirmTarget {
+                let isPause = target.status.isAdActive
+                Button(isPause ? "暂停" : "开启", role: isPause ? .destructive : nil) {
+                    vm.statusConfirmTarget = nil
+                    Task { await vm.updateStatus(item: target, action: isPause ? "pause" : "enable") }
+                }
+                Button("取消", role: .cancel) { vm.statusConfirmTarget = nil }
+            }
+        } message: {
+            if let target = vm.statusConfirmTarget { Text(target.adName) }
+        }
         .task { await vm.load() }
     }
 }
@@ -1752,8 +1827,21 @@ struct AdsAdsForAccountView: View {
             } else {
                 List {
                     ForEach(vm.items) { item in
-                        AdRow(item: item)
-                            .onAppear { if item.id == vm.items.last?.id { Task { await vm.loadMore() } } }
+                        AdRow(
+                            item: item,
+                            metrics: vm.adMetrics[item.adID],
+                            isUpdatingStatus: vm.updatingStatusID == item.id
+                        ) { vm.statusConfirmTarget = item }
+                        .swipeActions(edge: .trailing) {
+                            Button { vm.statusConfirmTarget = item } label: {
+                                Label(
+                                    item.status.isAdActive ? "暂停" : "开启",
+                                    systemImage: item.status.isAdActive ? "pause.circle" : "play.circle"
+                                )
+                            }
+                            .tint(item.status.isAdActive ? .orange : .green)
+                        }
+                        .onAppear { if item.id == vm.items.last?.id { Task { await vm.loadMore() } } }
                     }
                     if vm.isLoadingMore { loadingMoreRow }
                 }
@@ -1766,9 +1854,28 @@ struct AdsAdsForAccountView: View {
         .searchable(text: $vm.searchText,
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: "搜索广告 ID 或名称")
-        .alert("错误", isPresented: Binding(get: { vm.error != nil }, set: { if !$0 { vm.error = nil } })) {
+        .alert("操作失败", isPresented: Binding(get: { vm.error != nil }, set: { if !$0 { vm.error = nil } })) {
             Button("确定", role: .cancel) { vm.error = nil }
         } message: { Text(vm.error ?? "") }
+        .confirmationDialog(
+            vm.statusConfirmTarget?.status.isAdActive == true ? "确认暂停广告？" : "确认开启广告？",
+            isPresented: Binding(
+                get: { vm.statusConfirmTarget != nil },
+                set: { if !$0 { vm.statusConfirmTarget = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let target = vm.statusConfirmTarget {
+                let isPause = target.status.isAdActive
+                Button(isPause ? "暂停" : "开启", role: isPause ? .destructive : nil) {
+                    vm.statusConfirmTarget = nil
+                    Task { await vm.updateStatus(item: target, action: isPause ? "pause" : "enable") }
+                }
+                Button("取消", role: .cancel) { vm.statusConfirmTarget = nil }
+            }
+        } message: {
+            if let target = vm.statusConfirmTarget { Text(target.adName) }
+        }
         .task { await vm.load() }
     }
 }

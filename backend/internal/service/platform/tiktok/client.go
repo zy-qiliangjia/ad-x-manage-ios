@@ -341,9 +341,9 @@ func (c *Client) UpdateCampaignBudget(accessToken, advertiserID, campaignID stri
 
 func (c *Client) UpdateCampaignStatus(accessToken, advertiserID, campaignID, status string) error {
 	body := map[string]any{
-		"advertiser_id": advertiserID,
-		"campaign_ids":  []string{campaignID},
-		"opt_status":    status,
+		"advertiser_id":    advertiserID,
+		"campaign_ids":     []string{campaignID},
+		"operation_status": status,
 	}
 	var resp struct {
 		Code    int    `json:"code"`
@@ -494,6 +494,25 @@ func (c *Client) GetAds(accessToken, advertiserID, adGroupID string, page, pageS
 		})
 	}
 	return result, resp.Data.PageInfo.TotalNumber, nil
+}
+
+func (c *Client) UpdateAdStatus(accessToken, advertiserID, adID, status string) error {
+	body := map[string]any{
+		"advertiser_id":    advertiserID,
+		"ad_ids":           []string{adID},
+		"operation_status": status,
+	}
+	var resp struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := c.postWithToken("/open_api/"+apiVersion+"/ad/status/update/", body, accessToken, &resp); err != nil {
+		return err
+	}
+	if resp.Code != 0 {
+		return fmt.Errorf("tiktok update ad status error %d: %s", resp.Code, resp.Message)
+	}
+	return nil
 }
 
 // ── 报表 ────────────────────────────────────────────────────────

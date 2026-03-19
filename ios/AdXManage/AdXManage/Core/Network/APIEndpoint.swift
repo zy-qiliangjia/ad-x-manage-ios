@@ -38,6 +38,7 @@ enum APIEndpoint {
     // ── 广告 ───────────────────────────────────────────────
     case ads(advertiserID: Int)
     case allAds
+    case adStatus(id: Int)
 
     // ── 操作日志 ───────────────────────────────────────────
     case operationLogs
@@ -48,6 +49,7 @@ enum APIEndpoint {
     case statsReport
     case statsAdGroupReport
     case statsCampaignReport
+    case statsAdReport
 
     // MARK: - Path
 
@@ -81,6 +83,7 @@ enum APIEndpoint {
 
         case .ads(let aid):                       return "/advertisers/\(aid)/ads"
         case .allAds:                             return "/ads"
+        case .adStatus(let id):                   return "/ads/\(id)/status"
 
         case .operationLogs:                      return "/operation-logs"
 
@@ -89,6 +92,7 @@ enum APIEndpoint {
         case .statsReport:                        return "/stats/report"
         case .statsAdGroupReport:                 return "/stats/adgroup-report"
         case .statsCampaignReport:                return "/stats/campaign-report"
+        case .statsAdReport:                      return "/stats/ad-report"
         }
     }
 
@@ -103,7 +107,8 @@ enum APIEndpoint {
             return "DELETE"
         case .campaignBudget, .campaignStatus,
              .adGroupBudget, .adGroupStatus,
-             .advertiserBudget, .advertiserStatus:
+             .advertiserBudget, .advertiserStatus,
+             .adStatus:
             return "PATCH"
         default:
             return "GET"

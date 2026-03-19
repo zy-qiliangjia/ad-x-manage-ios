@@ -56,3 +56,18 @@ type CampaignReportItem struct {
 type CampaignReportResponse struct {
 	List []*CampaignReportItem `json:"list"`
 }
+
+// AdReportItem 单广告报表明细。
+type AdReportItem struct {
+	AdID        string  `json:"ad_id"`
+	Spend       float64 `json:"spend"`
+	Clicks      int64   `json:"clicks"`
+	Impressions int64   `json:"impressions"`
+	Conversion  int64   `json:"conversion"`
+	CPA         float64 `json:"cpa"`
+}
+
+// AdReportResponse 广告报表批量查询响应。
+type AdReportResponse struct {
+	List []*AdReportItem `json:"list"`
+}

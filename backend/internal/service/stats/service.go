@@ -46,6 +46,8 @@ type Service interface {
 	GetAdGroupReport(ctx context.Context, userID, advertiserDBID uint64, adGroupIDs []string, startDate, endDate string) (*dto.AdGroupReportResponse, error)
 	// GetCampaignReport 按推广系列维度拉取报表明细（per-campaign）。
 	GetCampaignReport(ctx context.Context, userID, advertiserDBID uint64, campaignIDs []string, startDate, endDate string) (*dto.CampaignReportResponse, error)
+	// GetAdReport 按广告维度拉取报表明细（per-ad）。
+	GetAdReport(ctx context.Context, userID, advertiserDBID uint64, adIDs []string, startDate, endDate string) (*dto.AdReportResponse, error)
 }
 
 type service struct {
@@ -472,6 +474,61 @@ func (s *service) GetCampaignReport(ctx context.Context, userID, advertiserDBID 
 	}
 
 	return &dto.CampaignReportResponse{List: list}, nil
+}
+
+// GetAdReport 从平台拉取逐广告报表，按 advertiserDBID 验证归属。
+func (s *service) GetAdReport(ctx context.Context, userID, advertiserDBID uint64, adIDs []string, startDate, endDate string) (*dto.AdReportResponse, error) {
+	if len(adIDs) == 0 {
+		return &dto.AdReportResponse{List: []*dto.AdReportItem{}}, nil
+	}
+
+	// 1. 验证广告主归属
+	adv, err := s.advRepo.FindByID(ctx, advertiserDBID)
+	if err != nil || adv == nil {
+		return nil, fmt.Errorf("advertiser not found")
+	}
+	if adv.UserID != userID {
+		return nil, fmt.Errorf("forbidden")
+	}
+
+	// 2. 获取 access token
+	tok, err := s.tokenRepo.FindByID(ctx, adv.TokenID)
+	if err != nil || tok == nil {
+		return nil, fmt.Errorf("token not found")
+	}
+
+	// 3. 调用平台客户端
+	client, ok := s.clients[adv.Platform]
+	if !ok {
+		return nil, fmt.Errorf("unsupported platform: %s", adv.Platform)
+	}
+
+	platformItems, err := client.GetAdReport(tok.AccessToken, adv.AdvertiserID, adIDs, startDate, endDate)
+	if err != nil {
+		s.log.Warn("GetAdReport platform error", zap.String("platform", adv.Platform), zap.Error(err))
+		platformItems = nil
+	}
+
+	// 4. 构建响应
+	itemMap := make(map[string]*platform.AdReportItem, len(platformItems))
+	for _, pi := range platformItems {
+		itemMap[pi.AdID] = pi
+	}
+
+	list := make([]*dto.AdReportItem, 0, len(adIDs))
+	for _, id := range adIDs {
+		item := &dto.AdReportItem{AdID: id}
+		if pi, ok := itemMap[id]; ok {
+			item.Spend = pi.Spend
+			item.Clicks = pi.Clicks
+			item.Impressions = pi.Impressions
+			item.Conversion = pi.Conversion
+			item.CPA = pi.CPA
+		}
+		list = append(list, item)
+	}
+
+	return &dto.AdReportResponse{List: list}, nil
 }
 
 func applyDateFilter(q *gorm.DB, dateFrom, dateTo string) *gorm.DB {

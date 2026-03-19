@@ -67,7 +67,7 @@ final class AppState: ObservableObject {
 
     // MARK: - 拉取服务端配置
 
-    private func fetchConfig() async {
+    func fetchConfig() async {
         do {
             contactConfig = try await APIClient.shared.request(.appConfig)
         } catch {

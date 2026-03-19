@@ -81,7 +81,7 @@ struct DashboardView: View {
             }
         }
         .background(AppTheme.Colors.background)
-        .ignoresSafeArea(edges: .top)
+        .ignoresSafeArea(edges: appState.isLoggedIn ? .top : [])
         .refreshable { if appState.isLoggedIn { await vm.load() } }
         .alert("加载失败", isPresented: Binding(
             get: { vm.error != nil },
@@ -117,7 +117,7 @@ struct DashboardView: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            .ignoresSafeArea(edges: .top)
+            .ignoresSafeArea(edges: appState.isLoggedIn ? .top : [])
 
             VStack(spacing: AppTheme.Spacing.lg) {
                 // 标题行
@@ -177,7 +177,7 @@ struct DashboardView: View {
                 }
             }
             .padding(.horizontal, AppTheme.Spacing.xl)
-            .padding(.top, AppTheme.Spacing.xl)
+            .padding(.top, appState.isLoggedIn ? AppTheme.Spacing.xl : 36)
             .padding(.bottom, AppTheme.Spacing.xl)
         }
     }

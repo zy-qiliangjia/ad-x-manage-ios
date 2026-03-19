@@ -24,7 +24,10 @@ struct ContentView: View {
             if !appState.isLoggedIn {
                 Color.clear
                     .contentShape(Rectangle())
-                    .onTapGesture { showContact = true }
+                    .onTapGesture {
+                        Task { await appState.fetchConfig() }
+                        showContact = true
+                    }
                     .ignoresSafeArea()
             }
         }
@@ -58,39 +61,44 @@ struct ContentView: View {
 
     private var demoBanner: some View {
         HStack(spacing: 0) {
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(AppTheme.Colors.warning)
-                    .frame(width: 6, height: 6)
-                Text("体验模式 · 示例数据")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color(red: 0.57, green: 0.25, blue: 0.05))
+            // 左侧：状态标签
+            HStack(spacing: 5) {
+                Text("DEMO")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(Color(red: 0.95, green: 0.60, blue: 0.10))
+                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                Text("示例数据，功能受限")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color(red: 0.45, green: 0.28, blue: 0.05))
             }
+
             Spacer()
+
+            // 右侧：开通入口
             Button {
+                Task { await appState.fetchConfig() }
                 showContact = true
             } label: {
-                Text("开通账号")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(AppTheme.Colors.primary)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                HStack(spacing: 3) {
+                    Text("联系开通")
+                        .font(.system(size: 12, weight: .semibold))
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .foregroundStyle(Color(red: 0.75, green: 0.40, blue: 0.00))
             }
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(red: 1.00, green: 0.95, blue: 0.76),
-                    Color(red: 0.99, green: 0.91, blue: 0.66)
-                ],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-        )
+        .padding(.vertical, 7)
+        .background(Color(red: 1.00, green: 0.95, blue: 0.82))
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color(red: 0.95, green: 0.82, blue: 0.50))
+                .frame(height: 0.5)
+        }
     }
 }

@@ -7,6 +7,7 @@ struct SettingsView: View {
     @EnvironmentObject private var appState: AppState
     @State private var showPlatformSelection = false
     @State private var showLogoutAlert       = false
+    @State private var pendingPlatform: Platform? = nil
     @StateObject private var oauthVM = OAuthViewModel()
 
     var body: some View {
@@ -78,9 +79,14 @@ struct SettingsView: View {
             .background(AppTheme.Colors.background)
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
-            .sheet(isPresented: $showPlatformSelection) {
-                PlatformSelectionView { platform in
+            .sheet(isPresented: $showPlatformSelection, onDismiss: {
+                if let platform = pendingPlatform {
+                    pendingPlatform = nil
                     oauthVM.authorize(platform: platform)
+                }
+            }) {
+                PlatformSelectionView { platform in
+                    pendingPlatform = platform
                 }
             }
             .sheet(isPresented: $oauthVM.isPresented) {

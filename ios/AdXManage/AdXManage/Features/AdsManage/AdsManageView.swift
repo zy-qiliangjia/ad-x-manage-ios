@@ -164,7 +164,6 @@ struct AdsManageView: View {
                             isUpdating: vm.updatingStatusID == adv.id,
                             metrics: vm.reportMetrics[adv.advertiserID],
                             isLoadingMetrics: vm.isLoadingMetrics,
-                            onBudget: { vm.budgetTarget = adv },
                             onToggle: { vm.statusConfirmTarget = adv },
                             onDrill: { navPath.append(.campaigns(adv)) }
                         )

@@ -2347,3 +2347,5 @@ https://business-api.tiktok.com/open_api/v1.3/report/integrated/get?page=1&data_
 
 未登陆下改成预览模式，登陆后访问您的数据， demo 标识 改成 预览模式
 
+
+ios 端先帮我把快手相关平台和渠道隐藏起来，当前还没有app 支持

@@ -213,7 +213,7 @@ struct InviteFriendsView: View {
             VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
                 hintLine("• 新用户注册默认获得 5 个账号额度")
                 hintLine("• 每成功邀请 1 位好友，双方各获得 +5 额度")
-                hintLine("• 额度为全平台共享，TikTok 和 Kwai 合计计算")
+                hintLine("• 额度为全平台广告主账号共享")
                 hintLine("• 超出额度的广告主账号不会自动入库")
             }
         }

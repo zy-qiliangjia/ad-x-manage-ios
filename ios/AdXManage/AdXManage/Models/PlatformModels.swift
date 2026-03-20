@@ -6,6 +6,9 @@ enum Platform: String, CaseIterable, Identifiable {
     case tiktok = "tiktok"
     case kwai   = "kwai"
 
+    /// 当前对外开放的平台列表（快手暂未上线，隐藏入口）
+    static var allCases: [Platform] { [.tiktok] }
+
     var id: String { rawValue }
 
     // ── 显示信息 ───────────────────────────────────────────

@@ -54,7 +54,8 @@ type CampaignReportItem struct {
 
 // CampaignReportResponse 推广系列报表批量查询响应。
 type CampaignReportResponse struct {
-	List []*CampaignReportItem `json:"list"`
+	List         []*CampaignReportItem `json:"list"`
+	TotalMetrics *CampaignReportItem   `json:"total_metrics,omitempty"`
 }
 
 // AdReportItem 单广告报表明细。
@@ -70,4 +71,18 @@ type AdReportItem struct {
 // AdReportResponse 广告报表批量查询响应。
 type AdReportResponse struct {
 	List []*AdReportItem `json:"list"`
+}
+
+// TrendDataPoint 单日趋势数据点。
+type TrendDataPoint struct {
+	Date        string  `json:"date"`
+	Spend       float64 `json:"spend"`
+	Clicks      int64   `json:"clicks"`
+	Impressions int64   `json:"impressions"`
+	Conversion  int64   `json:"conversion"`
+}
+
+// TrendReportResponse 近7天趋势报表响应。
+type TrendReportResponse struct {
+	Items []*TrendDataPoint `json:"items"`
 }

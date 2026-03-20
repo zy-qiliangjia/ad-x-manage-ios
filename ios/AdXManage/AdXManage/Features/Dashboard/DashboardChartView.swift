@@ -17,28 +17,62 @@ struct ChartDataPoint: Identifiable {
     let value: Double
 }
 
+// MARK: - DashboardChartViewModel
+
+@MainActor
+final class DashboardChartViewModel: ObservableObject {
+    @Published var dataByMetric: [ChartMetric: [ChartDataPoint]] = [:]
+    @Published var isLoading = false
+    @Published var hasError = false
+
+    private let service = StatsService.shared
+
+    func load(platform: String?) async {
+        isLoading = true
+        hasError = false
+        let range = StatsService.last7DaysRange()
+        do {
+            let resp = try await service.trendReport(
+                platform: platform,
+                startDate: range.startDate,
+                endDate: range.endDate
+            )
+            dataByMetric = buildChartData(from: resp.items)
+        } catch {
+            hasError = true
+            dataByMetric = [:]
+        }
+        isLoading = false
+    }
+
+    private func buildChartData(from items: [TrendDataPoint]) -> [ChartMetric: [ChartDataPoint]] {
+        var spend: [ChartDataPoint] = []
+        var impressions: [ChartDataPoint] = []
+        var clicks: [ChartDataPoint] = []
+
+        for item in items {
+            let date = item.parsedDate
+            spend.append(ChartDataPoint(date: date, value: item.spend))
+            impressions.append(ChartDataPoint(date: date, value: Double(item.impressions)))
+            clicks.append(ChartDataPoint(date: date, value: Double(item.clicks)))
+        }
+
+        return [
+            .spend:       spend,
+            .impressions: impressions,
+            .clicks:      clicks,
+        ]
+    }
+}
+
 // MARK: - DashboardChartView
 
 struct DashboardChartView: View {
 
-    @State private var selectedMetric: ChartMetric = .spend
+    let platform: String?
 
-    // Mock 近 7 日数据（待接入真实时序接口）
-    private let mockData: [ChartMetric: [ChartDataPoint]] = {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
-        let days: [Date] = (0..<7).map { offset in
-            cal.date(byAdding: .day, value: offset - 6, to: today)!
-        }
-        return [
-            .spend: zip(days, [1520.0, 1780, 1640, 1950, 2100, 1890, 1920])
-                .map { ChartDataPoint(date: $0, value: $1) },
-            .impressions: zip(days, [160.0, 175, 168, 190, 210, 180, 185])
-                .map { ChartDataPoint(date: $0, value: $1) },
-            .clicks: zip(days, [5800.0, 6200, 5900, 7100, 7500, 6400, 6300])
-                .map { ChartDataPoint(date: $0, value: $1) },
-        ]
-    }()
+    @StateObject private var vm = DashboardChartViewModel()
+    @State private var selectedMetric: ChartMetric = .spend
 
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
@@ -77,50 +111,63 @@ struct DashboardChartView: View {
             }
 
             // 图表
-            if let data = mockData[selectedMetric] {
-                Chart(data) { point in
-                    BarMark(
-                        x: .value("日期", point.date, unit: .day),
-                        y: .value(selectedMetric.rawValue, point.value)
-                    )
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [AppTheme.Colors.primary, AppTheme.Colors.primaryLight],
-                            startPoint: .bottom,
-                            endPoint: .top
-                        )
-                    )
-                    .cornerRadius(6)
-                }
-                .frame(height: 160)
-                .chartXAxis {
-                    AxisMarks(values: .stride(by: .day, count: 1)) { value in
-                        AxisValueLabel(format: .dateTime.month().day())
-                            .font(.system(size: 10))
-                            .foregroundStyle(AppTheme.Colors.textSecondary)
-                    }
-                }
-                .chartYAxis {
-                    AxisMarks(position: .leading) { _ in
-                        AxisValueLabel()
-                            .font(.system(size: 10))
-                            .foregroundStyle(AppTheme.Colors.textSecondary)
-                        AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
-                            .foregroundStyle(AppTheme.Colors.border)
-                    }
-                }
-                .animation(.easeInOut(duration: 0.3), value: selectedMetric)
-            } else {
-                Text("暂无趋势数据")
-                    .font(.subheadline)
-                    .foregroundStyle(AppTheme.Colors.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .frame(height: 160)
-            }
+            chartBody
         }
         .padding(AppTheme.Spacing.lg)
         .background(AppTheme.Colors.surface)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.Radius.xl))
         .cardShadow()
+        .task { await vm.load(platform: platform) }
+        .onChange(of: platform) { _, newPlatform in
+            Task { await vm.load(platform: newPlatform) }
+        }
+    }
+
+    @ViewBuilder
+    private var chartBody: some View {
+        if vm.isLoading {
+            ProgressView()
+                .frame(maxWidth: .infinity)
+                .frame(height: 160)
+        } else if let data = vm.dataByMetric[selectedMetric], !data.isEmpty {
+            Chart(data) { point in
+                BarMark(
+                    x: .value("日期", point.date, unit: .day),
+                    y: .value(selectedMetric.rawValue, point.value)
+                )
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [AppTheme.Colors.primary, AppTheme.Colors.primaryLight],
+                        startPoint: .bottom,
+                        endPoint: .top
+                    )
+                )
+                .cornerRadius(6)
+            }
+            .frame(height: 160)
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .day, count: 1)) { value in
+                    AxisValueLabel(format: .dateTime.month().day())
+                        .font(.system(size: 10))
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
+                }
+            }
+            .chartYAxis {
+                AxisMarks(position: .leading) { _ in
+                    AxisValueLabel()
+                        .font(.system(size: 10))
+                        .foregroundStyle(AppTheme.Colors.textSecondary)
+                    AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5))
+                        .foregroundStyle(AppTheme.Colors.border)
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: selectedMetric)
+        } else {
+            Text("暂无趋势数据")
+                .font(.subheadline)
+                .foregroundStyle(AppTheme.Colors.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .frame(height: 160)
+        }
     }
 }

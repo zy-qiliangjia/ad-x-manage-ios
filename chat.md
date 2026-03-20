@@ -2349,3 +2349,27 @@ https://business-api.tiktok.com/open_api/v1.3/report/integrated/get?page=1&data_
 
 
 ios 端先帮我把快手相关平台和渠道隐藏起来，当前还没有app 支持
+
+ios端帮我把请求和响应日志打出来
+
+
+
+帮我检查下服务端 /api/v1/stats/campaign-report? 获取数据返回的数据是否有问题，
+当前返回的数据是有消耗数据和汇总的, 除了list 还有 total_metrics
+
+
+ios端首页数据趋势图，拉取最近7天的
+- 前后端需同时实现
+- 通过调用第三方接口进行拉取
+- 入果当前账号下对应的多个广告主，需拆成分每次5个进行拉取，对应参数 advertiser_ids
+- 对每个平台进行汇总，相同指标
+- tiktok 平台请求和响应示例
+- 时间坐标对应字段：
+     "dimensions": {
+                    "stat_time_day": "2026-03-17 00:00:00"
+                }
+
+
+当前调用推广系列的报告 /api/v1/stats/campaign-report
+返回的是每个推广系列数据都是0，实际上我在调用tiktok 平台时，第三方返回的是有数据的，但是接口返回的都是0
+需要检查修复下，先分析原因

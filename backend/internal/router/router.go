@@ -196,6 +196,7 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 		protected.GET("/stats/adgroup-report", statsHandler.GetAdGroupReport)
 		protected.GET("/stats/campaign-report", statsHandler.GetCampaignReport)
 		protected.GET("/stats/ad-report", statsHandler.GetAdReport)
+		protected.GET("/stats/trend", statsHandler.GetTrendReport)
 	}
 
 	return r

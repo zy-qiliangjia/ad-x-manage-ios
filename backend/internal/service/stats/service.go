@@ -3,6 +3,7 @@ package statssvc
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"go.uber.org/zap"
@@ -48,6 +49,8 @@ type Service interface {
 	GetCampaignReport(ctx context.Context, userID, advertiserDBID uint64, campaignIDs []string, startDate, endDate string) (*dto.CampaignReportResponse, error)
 	// GetAdReport 按广告维度拉取报表明细（per-ad）。
 	GetAdReport(ctx context.Context, userID, advertiserDBID uint64, adIDs []string, startDate, endDate string) (*dto.AdReportResponse, error)
+	// GetTrendReport 拉取当前用户所有广告主近7天每日趋势数据，按平台过滤。
+	GetTrendReport(ctx context.Context, userID uint64, platformFilter, startDate, endDate string) (*dto.TrendReportResponse, error)
 }
 
 type service struct {
@@ -451,7 +454,7 @@ func (s *service) GetCampaignReport(ctx context.Context, userID, advertiserDBID 
 	platformItems, err := client.GetCampaignReport(tok.AccessToken, adv.AdvertiserID, campaignIDs, startDate, endDate)
 	if err != nil {
 		s.log.Warn("GetCampaignReport platform error", zap.String("platform", adv.Platform), zap.Error(err))
-		platformItems = nil
+		return nil, fmt.Errorf("platform GetCampaignReport: %w", err)
 	}
 
 	// 4. 构建响应
@@ -473,7 +476,19 @@ func (s *service) GetCampaignReport(ctx context.Context, userID, advertiserDBID 
 		list = append(list, item)
 	}
 
-	return &dto.CampaignReportResponse{List: list}, nil
+	// 5. 计算汇总指标
+	total := &dto.CampaignReportItem{}
+	for _, item := range list {
+		total.Spend += item.Spend
+		total.Clicks += item.Clicks
+		total.Impressions += item.Impressions
+		total.Conversion += item.Conversion
+	}
+	if total.Conversion > 0 {
+		total.CPA = total.Spend / float64(total.Conversion)
+	}
+
+	return &dto.CampaignReportResponse{List: list, TotalMetrics: total}, nil
 }
 
 // GetAdReport 从平台拉取逐广告报表，按 advertiserDBID 验证归属。
@@ -529,6 +544,89 @@ func (s *service) GetAdReport(ctx context.Context, userID, advertiserDBID uint64
 	}
 
 	return &dto.AdReportResponse{List: list}, nil
+}
+
+// GetTrendReport 拉取当前用户所有广告主在 [startDate, endDate] 内的每日趋势数据。
+// 按平台过滤，各平台结果按日期聚合后返回，日期升序。
+func (s *service) GetTrendReport(ctx context.Context, userID uint64, platformFilter, startDate, endDate string) (*dto.TrendReportResponse, error) {
+	// 1. 获取该用户下有效广告主列表
+	q := s.db.WithContext(ctx).Table("advertisers").
+		Where("user_id = ? AND status = 1", userID)
+	if platformFilter != "" {
+		q = q.Where("platform = ?", platformFilter)
+	}
+
+	var advs []entity.Advertiser
+	if err := q.Find(&advs).Error; err != nil {
+		return nil, err
+	}
+	if len(advs) == 0 {
+		return &dto.TrendReportResponse{Items: []*dto.TrendDataPoint{}}, nil
+	}
+
+	// 2. 按平台分组
+	type platformGroup struct {
+		tokenID       uint64
+		advertiserIDs []string
+	}
+	groups := make(map[string]*platformGroup)
+	for _, adv := range advs {
+		plt := adv.Platform
+		if _, ok := groups[plt]; !ok {
+			groups[plt] = &platformGroup{tokenID: adv.TokenID}
+		}
+		groups[plt].advertiserIDs = append(groups[plt].advertiserIDs, adv.AdvertiserID)
+	}
+
+	// 3. 按日期聚合各平台结果
+	byDate := make(map[string]*dto.TrendDataPoint)
+
+	for plt, group := range groups {
+		client, ok := s.clients[plt]
+		if !ok {
+			continue
+		}
+		tok, err := s.tokenRepo.FindByID(ctx, group.tokenID)
+		if err != nil || tok == nil {
+			s.log.Warn("GetTrendReport: token not found", zap.String("platform", plt))
+			continue
+		}
+		items, err := client.GetTrendReport(tok.AccessToken, group.advertiserIDs, startDate, endDate)
+		if err != nil {
+			s.log.Warn("GetTrendReport: platform error", zap.String("platform", plt), zap.Error(err))
+			continue
+		}
+		for _, item := range items {
+			if existing, ok := byDate[item.Date]; ok {
+				existing.Spend += item.Spend
+				existing.Clicks += item.Clicks
+				existing.Impressions += item.Impressions
+				existing.Conversion += item.Conversion
+			} else {
+				byDate[item.Date] = &dto.TrendDataPoint{
+					Date:        item.Date,
+					Spend:       item.Spend,
+					Clicks:      item.Clicks,
+					Impressions: item.Impressions,
+					Conversion:  item.Conversion,
+				}
+			}
+		}
+	}
+
+	// 4. 按日期排序输出
+	dates := make([]string, 0, len(byDate))
+	for d := range byDate {
+		dates = append(dates, d)
+	}
+	sort.Strings(dates)
+
+	result := make([]*dto.TrendDataPoint, 0, len(dates))
+	for _, d := range dates {
+		result = append(result, byDate[d])
+	}
+
+	return &dto.TrendReportResponse{Items: result}, nil
 }
 
 func applyDateFilter(q *gorm.DB, dateFrom, dateTo string) *gorm.DB {

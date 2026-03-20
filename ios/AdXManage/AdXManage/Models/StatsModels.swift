@@ -215,6 +215,27 @@ struct StatsReportResponse: Decodable {
     }
 }
 
+// MARK: - 每日趋势
+
+struct TrendDataPoint: Decodable, Identifiable {
+    var id: String { date }
+    let date: String
+    let spend: Double
+    let clicks: Int
+    let impressions: Int
+    let conversion: Int
+
+    var parsedDate: Date {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        return f.date(from: date) ?? Date()
+    }
+}
+
+struct TrendReportResponse: Decodable {
+    let items: [TrendDataPoint]
+}
+
 // MARK: - 数据概览
 
 struct StatsOverview: Decodable {

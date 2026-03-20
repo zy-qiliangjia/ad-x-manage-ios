@@ -656,6 +656,173 @@ func (c *Client) fetchAdBatch(ctx context.Context, accessToken, advertiserID str
 	return items, nil
 }
 
+// ── 每日趋势报表（按 stat_time_day 维度）────────────────────────
+
+const trendReportCacheTTL = 5 * time.Minute
+
+// trendBatchCacheKey 生成每日趋势批次缓存 key。
+func trendBatchCacheKey(startDate, endDate string, batchIDs []string) string {
+	sorted := make([]string, len(batchIDs))
+	copy(sorted, batchIDs)
+	sort.Strings(sorted)
+	return fmt.Sprintf("stats:trend:batch:tiktok:%s:%s:%s", startDate, endDate, strings.Join(sorted, ","))
+}
+
+// trendDayMetrics TikTok 趋势报表单行 metrics 字段。
+type trendDayMetrics struct {
+	Spend       string `json:"spend"`
+	Clicks      string `json:"clicks"`
+	Impressions string `json:"impressions"`
+	Conversion  string `json:"conversion"`
+}
+
+// GetTrendReport 拉取 advertiserIDs 在 [startDate, endDate] 内的每日汇总趋势。
+// 内部按 ≤5 个/批切分，顺序调用 TikTok Report API（stat_time_day 维度），
+// 各批次结果按日期聚合后返回，按日期升序排列。
+func (c *Client) GetTrendReport(accessToken string, advertiserIDs []string, startDate, endDate string) ([]*platform.DailyTrendItem, error) {
+	if len(advertiserIDs) == 0 {
+		return nil, nil
+	}
+
+	ctx := context.Background()
+	batches := chunkIDs(advertiserIDs, batchSize)
+	// date → aggregated item
+	byDate := make(map[string]*platform.DailyTrendItem)
+
+	for i, batch := range batches {
+		if i > 0 {
+			time.Sleep(rateLimitInterval)
+		}
+		items, err := c.fetchTrendBatch(ctx, accessToken, batch, startDate, endDate)
+		if err != nil {
+			// 批次失败时跳过，不中断
+			continue
+		}
+		for _, item := range items {
+			if existing, ok := byDate[item.Date]; ok {
+				existing.Spend += item.Spend
+				existing.Clicks += item.Clicks
+				existing.Impressions += item.Impressions
+				existing.Conversion += item.Conversion
+			} else {
+				byDate[item.Date] = &platform.DailyTrendItem{
+					Date:        item.Date,
+					Spend:       item.Spend,
+					Clicks:      item.Clicks,
+					Impressions: item.Impressions,
+					Conversion:  item.Conversion,
+				}
+			}
+		}
+	}
+
+	// 按日期排序输出
+	dates := make([]string, 0, len(byDate))
+	for d := range byDate {
+		dates = append(dates, d)
+	}
+	sort.Strings(dates)
+
+	out := make([]*platform.DailyTrendItem, 0, len(dates))
+	for _, d := range dates {
+		out = append(out, byDate[d])
+	}
+	return out, nil
+}
+
+// fetchTrendBatch 调用 TikTok Report API 获取单批次的每日趋势数据。
+// 优先读 Redis 缓存；未命中时调用 API 并缓存结果。
+func (c *Client) fetchTrendBatch(ctx context.Context, accessToken string, batchIDs []string, startDate, endDate string) ([]*platform.DailyTrendItem, error) {
+	cacheKey := trendBatchCacheKey(startDate, endDate, batchIDs)
+
+	if c.rdb != nil {
+		if cached, err := c.rdb.Get(ctx, cacheKey).Bytes(); err == nil {
+			var items []*platform.DailyTrendItem
+			if jsonErr := json.Unmarshal(cached, &items); jsonErr == nil {
+				return items, nil
+			}
+		}
+	}
+
+	idsJSON, _ := json.Marshal(batchIDs)
+	metricsJSON, _ := json.Marshal([]string{"spend", "clicks", "impressions", "conversion"})
+	dimensionsJSON, _ := json.Marshal([]string{"stat_time_day"})
+
+	params := url.Values{}
+	params.Set("page", "1")
+	params.Set("page_size", "1000")
+	params.Set("data_level", "AUCTION_ADVERTISER")
+	params.Set("report_type", "BASIC")
+	params.Set("dimensions", string(dimensionsJSON))
+	params.Set("metrics", string(metricsJSON))
+	params.Set("enable_total_metrics", "false")
+	params.Set("start_date", startDate)
+	params.Set("end_date", endDate)
+	params.Set("advertiser_ids", string(idsJSON))
+
+	var resp struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			List []struct {
+				Dimensions struct {
+					StatTimeDay string `json:"stat_time_day"`
+				} `json:"dimensions"`
+				Metrics trendDayMetrics `json:"metrics"`
+			} `json:"list"`
+		} `json:"data"`
+	}
+
+	if err := c.get("/open_api/"+apiVersion+"/report/integrated/get/", params, accessToken, &resp); err != nil {
+		return nil, fmt.Errorf("tiktok trend report api: %w", err)
+	}
+	if resp.Code != 0 {
+		return nil, fmt.Errorf("tiktok trend report api error %d: %s", resp.Code, resp.Message)
+	}
+
+	// 按日期聚合（同一批次多个广告主可能有同一天多行）
+	byDate := make(map[string]*platform.DailyTrendItem)
+	for _, row := range resp.Data.List {
+		// stat_time_day 格式 "2026-03-17 00:00:00"，取前10位
+		date := row.Dimensions.StatTimeDay
+		if len(date) >= 10 {
+			date = date[:10]
+		}
+		spend, _ := strconv.ParseFloat(row.Metrics.Spend, 64)
+		clicks, _ := strconv.ParseInt(row.Metrics.Clicks, 10, 64)
+		impressions, _ := strconv.ParseInt(row.Metrics.Impressions, 10, 64)
+		conversion, _ := strconv.ParseInt(row.Metrics.Conversion, 10, 64)
+
+		if existing, ok := byDate[date]; ok {
+			existing.Spend += spend
+			existing.Clicks += clicks
+			existing.Impressions += impressions
+			existing.Conversion += conversion
+		} else {
+			byDate[date] = &platform.DailyTrendItem{
+				Date:        date,
+				Spend:       spend,
+				Clicks:      clicks,
+				Impressions: impressions,
+				Conversion:  conversion,
+			}
+		}
+	}
+
+	items := make([]*platform.DailyTrendItem, 0, len(byDate))
+	for _, item := range byDate {
+		items = append(items, item)
+	}
+
+	if c.rdb != nil {
+		if data, err := json.Marshal(items); err == nil {
+			_ = c.rdb.Set(ctx, cacheKey, data, trendReportCacheTTL).Err()
+		}
+	}
+
+	return items, nil
+}
+
 // sortedKey 返回 ID 排序后以逗号拼接的字符串（供缓存 key 使用）。
 func sortedKey(ids []string) string {
 	sorted := make([]string, len(ids))
@@ -702,13 +869,14 @@ func (c *Client) GetCampaignReport(accessToken, advertiserID string, campaignIDs
 	// 2. 批量拉取未命中缓存的 ID
 	if len(uncached) > 0 {
 		items, err := c.fetchCampaignBatch(ctx, accessToken, advertiserID, uncached, startDate, endDate)
-		if err == nil {
-			for _, item := range items {
-				result[item.CampaignID] = item
-				if c.rdb != nil {
-					if raw, err := json.Marshal(item); err == nil {
-						_ = c.rdb.Set(ctx, campaignReportCacheKey(advertiserID, item.CampaignID, startDate, endDate), raw, campaignReportCacheTTL).Err()
-					}
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range items {
+			result[item.CampaignID] = item
+			if c.rdb != nil {
+				if raw, err := json.Marshal(item); err == nil {
+					_ = c.rdb.Set(ctx, campaignReportCacheKey(advertiserID, item.CampaignID, startDate, endDate), raw, campaignReportCacheTTL).Err()
 				}
 			}
 		}
@@ -727,26 +895,29 @@ func (c *Client) GetCampaignReport(accessToken, advertiserID string, campaignIDs
 }
 
 // fetchCampaignBatch 调用 TikTok Integrated Report API 拉取推广系列明细数据。
-// 直接按广告主拉取全量推广系列数据（AUCTION_CAMPAIGN 不支持 filtering.campaign_ids），
-// 后续通过 campaign_id 维度做本地匹配过滤。
+// 使用 GET 方法，与 fetchBatch/fetchAdvBatch 保持一致（POST 对该端点无效）。
+// 传入单个 advertiserID 封装为 advertiser_ids 数组，按广告主拉取全量推广系列后本地过滤。
 func (c *Client) fetchCampaignBatch(ctx context.Context, accessToken, advertiserID string, campaignIDs []string, startDate, endDate string) ([]*platform.CampaignReportItem, error) {
-	// 构建仅筛选指定 campaign_ids 的 filtering 参数（使用 campaign_id 字段名而非 campaign_ids）
 	campaignIDSet := make(map[string]bool, len(campaignIDs))
 	for _, id := range campaignIDs {
 		campaignIDSet[id] = true
 	}
 
-	body := map[string]any{
-		"advertiser_id": advertiserID,
-		"data_level":    "AUCTION_CAMPAIGN",
-		"report_type":   "BASIC",
-		"dimensions":    []string{"campaign_id"},
-		"metrics":       []string{"spend", "clicks", "impressions", "conversion", "cost_per_conversion"},
-		"start_date":    startDate,
-		"end_date":      endDate,
-		"page":          1,
-		"page_size":     1000,
-	}
+	idsJSON, _ := json.Marshal([]string{advertiserID})
+	metricsJSON, _ := json.Marshal([]string{"spend", "clicks", "impressions", "conversion", "cost_per_conversion"})
+	dimensionsJSON, _ := json.Marshal([]string{"campaign_id"})
+
+	params := url.Values{}
+	params.Set("page", "1")
+	params.Set("page_size", "1000")
+	params.Set("data_level", "AUCTION_CAMPAIGN")
+	params.Set("report_type", "BASIC")
+	params.Set("dimensions", string(dimensionsJSON))
+	params.Set("metrics", string(metricsJSON))
+	params.Set("enable_total_metrics", "false")
+	params.Set("start_date", startDate)
+	params.Set("end_date", endDate)
+	params.Set("advertiser_ids", string(idsJSON))
 
 	var resp struct {
 		Code    int    `json:"code"`
@@ -767,17 +938,7 @@ func (c *Client) fetchCampaignBatch(ctx context.Context, accessToken, advertiser
 		} `json:"data"`
 	}
 
-	b, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.base()+"/open_api/"+apiVersion+"/report/integrated/get/", bytes.NewReader(b))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Access-Token", accessToken)
-	if err := c.do(req, &resp); err != nil {
+	if err := c.get("/open_api/"+apiVersion+"/report/integrated/get/", params, accessToken, &resp); err != nil {
 		return nil, fmt.Errorf("tiktok campaign report api: %w", err)
 	}
 	if resp.Code != 0 {

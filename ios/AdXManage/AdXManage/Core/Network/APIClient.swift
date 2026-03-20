@@ -133,13 +133,8 @@ final class APIClient {
 
     private func perform(_ req: URLRequest) async throws -> Data {
         #if DEBUG
-        let method = req.httpMethod ?? "GET"
-        let url    = req.url?.absoluteString ?? ""
-        if let body = req.httpBody, let bodyStr = String(data: body, encoding: .utf8) {
-            print("➡️ \(method) \(url)\n   Body: \(bodyStr)")
-        } else {
-            print("➡️ \(method) \(url)")
-        }
+        logRequest(req)
+        let startTime = Date()
         #endif
 
         let data: Data
@@ -155,9 +150,8 @@ final class APIClient {
         }
 
         #if DEBUG
-        let status  = (response as? HTTPURLResponse)?.statusCode ?? 0
-        let respStr = String(data: data, encoding: .utf8) ?? "<binary>"
-        print("⬅️ \(status) \(url)\n   Body: \(respStr)")
+        let elapsed = Date().timeIntervalSince(startTime) * 1000
+        logResponse(response, data: data, elapsed: elapsed, url: req.url?.absoluteString ?? "")
         #endif
 
         if let http = response as? HTTPURLResponse, http.statusCode == 401 {
@@ -166,6 +160,67 @@ final class APIClient {
         }
         return data
     }
+
+    // MARK: - 私有：日志
+
+    #if DEBUG
+    private func logRequest(_ req: URLRequest) {
+        let method = req.httpMethod ?? "GET"
+        let url    = req.url?.absoluteString ?? ""
+        var lines  = ["", "┌─── REQUEST ───────────────────────────────────",
+                      "│ \(method) \(url)"]
+
+        // Headers（跳过 Authorization 完整内容，只显示有无）
+        if let headers = req.allHTTPHeaderFields {
+            for (key, value) in headers.sorted(by: { $0.key < $1.key }) {
+                if key.lowercased() == "authorization" {
+                    lines.append("│ \(key): Bearer ***")
+                } else {
+                    lines.append("│ \(key): \(value)")
+                }
+            }
+        }
+
+        // Body
+        if let body = req.httpBody {
+            lines.append("│ Body:")
+            lines.append(prettyJSON(body).split(separator: "\n").map { "│   \($0)" }.joined(separator: "\n"))
+        }
+
+        lines.append("└────────────────────────────────────────────────")
+        print(lines.joined(separator: "\n"))
+    }
+
+    private func logResponse(_ response: URLResponse, data: Data, elapsed: Double, url: String) {
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let statusIcon = (200..<300).contains(status) ? "✅" : "❌"
+        var lines = ["", "┌─── RESPONSE ──────────────────────────────────",
+                     "│ \(statusIcon) \(status)  (\(String(format: "%.0f", elapsed)) ms)  \(url)"]
+
+        // Response Headers
+        if let http = response as? HTTPURLResponse {
+            for (key, value) in http.allHeaderFields {
+                lines.append("│ \(key): \(value)")
+            }
+        }
+
+        // Body
+        lines.append("│ Body:")
+        lines.append(prettyJSON(data).split(separator: "\n").map { "│   \($0)" }.joined(separator: "\n"))
+        lines.append("└────────────────────────────────────────────────")
+        print(lines.joined(separator: "\n"))
+    }
+
+    private func prettyJSON(_ data: Data) -> String {
+        guard !data.isEmpty,
+              let obj = try? JSONSerialization.jsonObject(with: data),
+              let pretty = try? JSONSerialization.data(withJSONObject: obj, options: [.prettyPrinted, .sortedKeys]),
+              let str = String(data: pretty, encoding: .utf8) else {
+            return String(data: data, encoding: .utf8) ?? "<binary \(data.count) bytes>"
+        }
+        return str
+    }
+    #endif
 
     // MARK: - 私有：解码
 

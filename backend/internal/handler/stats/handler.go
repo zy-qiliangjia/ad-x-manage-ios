@@ -245,6 +245,28 @@ func (h *Handler) GetAdReport(c *gin.Context) {
 	response.OK(c, result)
 }
 
+// GetTrendReport 近7天每日趋势查询接口。
+// GET /api/v1/stats/trend?platform=tiktok&start_date=2026-03-14&end_date=2026-03-20
+func (h *Handler) GetTrendReport(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	platform := c.Query("platform")
+	startDate := c.Query("start_date")
+	endDate := c.Query("end_date")
+
+	if startDate == "" || endDate == "" {
+		now := time.Now()
+		endDate = now.Format("2006-01-02")
+		startDate = now.AddDate(0, 0, -6).Format("2006-01-02")
+	}
+
+	result, err := h.svc.GetTrendReport(c.Request.Context(), userID, platform, startDate, endDate)
+	if err != nil {
+		response.Fail(c, 500, response.CodeServerError, "获取趋势数据失败")
+		return
+	}
+	response.OK(c, result)
+}
+
 func parseUint64(s string) (uint64, error) {
 	v, err := strconv.ParseUint(s, 10, 64)
 	if err != nil {

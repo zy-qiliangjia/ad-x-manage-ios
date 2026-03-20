@@ -77,6 +77,16 @@ final class StatsService {
         return try await client.request(.statsAdReport, queryParams: params)
     }
 
+    /// 拉取近7天每日趋势数据（消耗/点击/展示/转化）
+    func trendReport(platform: String? = nil, startDate: String, endDate: String) async throws -> TrendReportResponse {
+        var params: [String: String] = [
+            "start_date": startDate,
+            "end_date":   endDate
+        ]
+        if let p = platform, !p.isEmpty { params["platform"] = p }
+        return try await client.request(.statsTrend, queryParams: params)
+    }
+
     /// 按层级聚合指标：scope = "advertiser" | "campaign" | "adgroup"
     func summary(scope: String, scopeID: UInt64, dateFrom: String? = nil, dateTo: String? = nil) async throws -> StatsSummary {
         var params: [String: String] = [

@@ -66,6 +66,10 @@ type Client interface {
 	// adIDs 为平台广告 ID 列表，返回各广告指标明细。
 	GetAdReport(accessToken, advertiserID string, adIDs []string, startDate, endDate string) ([]*AdReportItem, error)
 
+	// GetTrendReport 拉取按天维度的趋势数据，每次传入 ≤5 个广告主 ID。
+	// 返回 [startDate, endDate] 范围内每天所有广告主的汇总指标。
+	GetTrendReport(accessToken string, advertiserIDs []string, startDate, endDate string) ([]*DailyTrendItem, error)
+
 	// ── 广告写操作 ─────────────────────────────────────────
 	// UpdateAdStatus 开启或暂停广告（status: "ENABLE"/"DISABLE" for TikTok, "ONLINE"/"OFFLINE" for Kwai）
 	UpdateAdStatus(accessToken, advertiserID, adID, status string) error
@@ -169,6 +173,15 @@ type AdReportItem struct {
 	Impressions int64
 	Conversion  int64
 	CPA         float64
+}
+
+// DailyTrendItem 单日趋势指标（跨所有广告主汇总）。
+type DailyTrendItem struct {
+	Date        string  // "2026-03-14"
+	Spend       float64
+	Clicks      int64
+	Impressions int64
+	Conversion  int64
 }
 
 // AdvertiserReportItem 单广告主报表明细指标。

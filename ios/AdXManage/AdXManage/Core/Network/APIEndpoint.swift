@@ -51,6 +51,7 @@ enum APIEndpoint {
     case statsAdGroupReport
     case statsCampaignReport
     case statsAdReport
+    case statsTrend
 
     // ── 邀请 & 额度 ────────────────────────────────────────
     case userInvite
@@ -102,6 +103,7 @@ enum APIEndpoint {
         case .statsAdGroupReport:                 return "/stats/adgroup-report"
         case .statsCampaignReport:                return "/stats/campaign-report"
         case .statsAdReport:                      return "/stats/ad-report"
+        case .statsTrend:                         return "/stats/trend"
 
         case .userInvite:                         return "/users/invite"
         case .userQuota:                          return "/users/quota"

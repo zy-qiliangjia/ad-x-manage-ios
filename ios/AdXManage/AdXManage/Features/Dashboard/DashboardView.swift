@@ -72,7 +72,7 @@ struct DashboardView: View {
                     }
 
                     // 趋势图
-                    DashboardChartView()
+                    DashboardChartView(platform: vm.platformFilter?.rawValue)
                         .padding(.horizontal, AppTheme.Spacing.xl)
 
                     Spacer(minLength: AppTheme.Spacing.xl)

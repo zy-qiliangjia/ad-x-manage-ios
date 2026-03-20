@@ -511,6 +511,11 @@ func (c *Client) GetAdReport(_ string, _ string, adIDs []string, _, _ string) ([
 	return items, nil
 }
 
+// GetTrendReport 快手每日趋势报表（待实现，返回空切片占位）。
+func (c *Client) GetTrendReport(_ string, _ []string, _, _ string) ([]*platform.DailyTrendItem, error) {
+	return nil, nil
+}
+
 // UpdateAdStatus 快手广告状态更新（待实现）。
 func (c *Client) UpdateAdStatus(_, _, _, _ string) error {
 	return nil

@@ -1,0 +1,1544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>客服管理后台</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
+            background-color: #f8f8fa;
+            color: #333;
+        }
+
+        /* Top Navigation Bar */
+        .navbar {
+            background-color: white;
+            border-bottom: 1px solid #e8e8ec;
+            padding: 0 24px;
+            height: 64px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .navbar-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .navbar-icon {
+            width: 24px;
+            height: 24px;
+            background-color: #5b4fd4;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .navbar-right {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .navbar-user {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .logout-btn {
+            background-color: transparent;
+            border: 1px solid #d9d9e3;
+            color: #666;
+            padding: 6px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .logout-btn:hover {
+            background-color: #f5f5f7;
+            border-color: #ccc;
+        }
+
+        /* Container */
+        .container {
+            display: flex;
+            height: calc(100vh - 64px);
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 220px;
+            background-color: white;
+            border-right: 1px solid #e8e8ec;
+            overflow-y: auto;
+            transition: width 0.3s;
+        }
+
+        .sidebar.collapsed {
+            width: 0;
+            border-right: none;
+        }
+
+        .nav-item {
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            color: #666;
+            font-size: 14px;
+            border-left: 3px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .nav-item:hover {
+            background-color: #f5f4ff;
+            color: #5b4fd4;
+        }
+
+        .nav-item.active {
+            background-color: #f5f4ff;
+            color: #5b4fd4;
+            border-left-color: #5b4fd4;
+            font-weight: 500;
+        }
+
+        .nav-icon {
+            font-size: 18px;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        .page {
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        /* Stat Cards */
+        .stat-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background-color: white;
+            border: 1px solid #e8e8ec;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 600;
+            color: #5b4fd4;
+            margin: 8px 0;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Activity List */
+        .activity-section {
+            background-color: white;
+            border: 1px solid #e8e8ec;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 24px;
+        }
+
+        .activity-title {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #333;
+        }
+
+        .activity-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f2;
+            font-size: 14px;
+        }
+
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+
+        .activity-action {
+            color: #5b4fd4;
+            font-weight: 500;
+        }
+
+        .activity-time {
+            color: #999;
+        }
+
+        /* Account Management */
+        .action-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .btn-primary {
+            background-color: #5b4fd4;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover {
+            background-color: #4a3fb8;
+            box-shadow: 0 2px 8px rgba(91, 79, 212, 0.2);
+        }
+
+        .btn-secondary {
+            background-color: white;
+            color: #666;
+            border: 1px solid #d9d9e3;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary:hover {
+            background-color: #f5f5f7;
+            border-color: #ccc;
+        }
+
+        .search-input {
+            padding: 8px 12px;
+            border: 1px solid #d9d9e3;
+            border-radius: 4px;
+            font-size: 14px;
+            flex: 0 1 200px;
+            transition: all 0.2s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #5b4fd4;
+            box-shadow: 0 0 0 2px rgba(91, 79, 212, 0.1);
+        }
+
+        .select-input {
+            padding: 8px 12px;
+            border: 1px solid #d9d9e3;
+            border-radius: 4px;
+            font-size: 14px;
+            background-color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .select-input:focus {
+            outline: none;
+            border-color: #5b4fd4;
+        }
+
+        /* Table */
+        .table-container {
+            background-color: white;
+            border: 1px solid #e8e8ec;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        thead {
+            background-color: #f8f8fa;
+            border-bottom: 1px solid #e8e8ec;
+        }
+
+        th {
+            padding: 12px 16px;
+            text-align: left;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #f0f0f2;
+            color: #333;
+        }
+
+        tbody tr:hover {
+            background-color: #fafafa;
+        }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .badge-indigo {
+            background-color: #e8e6f7;
+            color: #5b4fd4;
+        }
+
+        .badge-blue {
+            background-color: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .badge-green {
+            background-color: #e8f5e9;
+            color: #388e3c;
+        }
+
+        /* Status Indicator */
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-dot.active {
+            background-color: #52c41a;
+        }
+
+        .status-dot.disabled {
+            background-color: #ff4d4f;
+        }
+
+        /* Action Buttons in Table */
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-small {
+            padding: 4px 10px;
+            border: 1px solid #d9d9e3;
+            background-color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #666;
+            transition: all 0.2s;
+        }
+
+        .btn-small:hover {
+            background-color: #f5f5f7;
+            border-color: #ccc;
+        }
+
+        .btn-small.btn-danger {
+            color: #ff4d4f;
+            border-color: #ffccc7;
+        }
+
+        .btn-small.btn-danger:hover {
+            background-color: #fff1f0;
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .pagination-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .page-btn {
+            padding: 6px 10px;
+            border: 1px solid #d9d9e3;
+            background-color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #666;
+            transition: all 0.2s;
+        }
+
+        .page-btn:hover:not(:disabled) {
+            border-color: #5b4fd4;
+            color: #5b4fd4;
+        }
+
+        .page-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .page-btn.active {
+            background-color: #5b4fd4;
+            color: white;
+            border-color: #5b4fd4;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.3);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+            width: 90%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #e8e8ec;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #999;
+            cursor: pointer;
+            padding: 0;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover {
+            color: #333;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .form-label .required {
+            color: #ff4d4f;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d9d9e3;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #5b4fd4;
+            box-shadow: 0 0 0 2px rgba(91, 79, 212, 0.1);
+        }
+
+        .password-input-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        .password-input-group .form-input {
+            flex: 1;
+        }
+
+        .copy-btn {
+            padding: 8px 12px;
+            background-color: #f5f4ff;
+            border: 1px solid #d9d9e3;
+            border-radius: 4px;
+            cursor: pointer;
+            color: #5b4fd4;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .copy-btn:hover {
+            background-color: #e8e6f7;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: #5b4fd4;
+        }
+
+        .checkbox-item label {
+            cursor: pointer;
+            font-size: 14px;
+            color: #333;
+        }
+
+        .textarea-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d9d9e3;
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 80px;
+            transition: all 0.2s;
+        }
+
+        .textarea-input:focus {
+            outline: none;
+            border-color: #5b4fd4;
+            box-shadow: 0 0 0 2px rgba(91, 79, 212, 0.1);
+        }
+
+        .modal-footer {
+            padding: 20px;
+            border-top: 1px solid #e8e8ec;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .modal-footer .btn-primary,
+        .modal-footer .btn-secondary {
+            padding: 8px 24px;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background-color: #333;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 300;
+            animation: toastSlideIn 0.3s ease-out;
+            font-size: 14px;
+        }
+
+        .toast.success {
+            background-color: #52c41a;
+        }
+
+        .toast.error {
+            background-color: #ff4d4f;
+        }
+
+        .toast.info {
+            background-color: #1890ff;
+        }
+
+        @keyframes toastSlideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Confirmation Dialog */
+        .confirm-dialog {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+            width: 90%;
+            max-width: 400px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .confirm-dialog .modal-body {
+            text-align: center;
+        }
+
+        .confirm-message {
+            font-size: 14px;
+            color: #666;
+            margin: 16px 0;
+            line-height: 1.5;
+        }
+
+        .confirm-dialog .modal-footer {
+            justify-content: center;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .navbar {
+                padding: 0 16px;
+            }
+
+            .sidebar {
+                position: absolute;
+                height: 100%;
+                left: 0;
+                top: 0;
+                box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+                z-index: 150;
+            }
+
+            .main-content {
+                padding: 16px;
+            }
+
+            .stat-cards {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .action-bar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .search-input {
+                flex: 1;
+                width: 100%;
+            }
+
+            table {
+                font-size: 12px;
+            }
+
+            th, td {
+                padding: 10px 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Feishu Login Screen -->
+    <div id="loginScreen" style="display:flex;min-height:100vh;align-items:center;justify-content:center;background:#f8f8fa;">
+      <div style="background:white;border-radius:12px;padding:40px 32px;width:90%;max-width:400px;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+        <div style="width:48px;height:48px;background:#5b4fd4;border-radius:10px;display:flex;align-items:center;justify-content:center;color:white;font-size:20px;font-weight:bold;margin:0 auto 16px;">⚙</div>
+        <h2 style="font-size:20px;font-weight:600;margin-bottom:6px;">客服管理后台</h2>
+        <p style="font-size:14px;color:#666;margin-bottom:28px;">使用飞书账号登录</p>
+        <button onclick="feishuLogin()" style="width:100%;padding:12px;background:#3370FF;color:white;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background 0.2s;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M4.5 3.5L9.2 8.2L19.5 5L12.8 14.3L15 20.5L4.5 12V3.5Z"/></svg>
+          飞书登录
+        </button>
+        <p style="font-size:12px;color:#aaa;margin-top:16px;">仅限内部客服人员登录</p>
+      </div>
+    </div>
+
+    <!-- Top Navigation (shown after login) -->
+    <div class="navbar" id="mainNavbar" style="display:none;">
+        <div class="navbar-left">
+            <div class="navbar-icon">⚙</div>
+            <span>客服管理后台</span>
+        </div>
+        <div class="navbar-right">
+            <div class="navbar-user">
+                <span id="currentUserName">客服：张三</span>
+            </div>
+            <button class="logout-btn" onclick="feishuLogout()">退出登录</button>
+        </div>
+    </div>
+
+    <!-- Main Container (shown after login) -->
+    <div class="container" id="mainContainer" style="display:none;">
+        <!-- Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <div class="nav-item active" onclick="switchPage('dashboard')">
+                <span class="nav-icon">📊</span>
+                <span>数据概览</span>
+            </div>
+            <div class="nav-item" onclick="switchPage('accounts')">
+                <span class="nav-icon">👥</span>
+                <span>账号管理</span>
+            </div>
+            <div class="nav-item" onclick="switchPage('logs')">
+                <span class="nav-icon">📋</span>
+                <span>操作日志</span>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Dashboard Page -->
+            <div id="dashboard" class="page active">
+                <h2 style="font-size: 20px; margin-bottom: 20px; color: #333;">数据概览</h2>
+
+                <div class="stat-cards">
+                    <div class="stat-card">
+                        <div class="stat-label">总账号数</div>
+                        <div class="stat-value">156</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">今日新增</div>
+                        <div class="stat-value">8</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">活跃账号</div>
+                        <div class="stat-value">132</div>
+                        <div style="font-size:11px;color:#aaa;margin-top:4px;">近7天有登录</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">待处理</div>
+                        <div class="stat-value">3</div>
+                    </div>
+                </div>
+
+                <div class="activity-section">
+                    <div class="activity-title">最近操作</div>
+                    <div class="activity-item">
+                        <span><span class="activity-action">创建账号</span> - user@example.com (掌上AD)</span>
+                        <span class="activity-time">2分钟前</span>
+                    </div>
+                    <div class="activity-item">
+                        <span><span class="activity-action">重置密码</span> - demo@company.com (AD搭子)</span>
+                        <span class="activity-time">15分钟前</span>
+                    </div>
+                    <div class="activity-item">
+                        <span><span class="activity-action">禁用账号</span> - test@demo.com (AD晴雨表)</span>
+                        <span class="activity-time">1小时前</span>
+                    </div>
+                    <div class="activity-item">
+                        <span><span class="activity-action">修改信息</span> - admin@test.com (掌上AD)</span>
+                        <span class="activity-time">3小时前</span>
+                    </div>
+                    <div class="activity-item">
+                        <span><span class="activity-action">启用账号</span> - user2@test.com (AD搭子)</span>
+                        <span class="activity-time">5小时前</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Account Management Page -->
+            <div id="accounts" class="page">
+                <h2 style="font-size: 20px; margin-bottom: 20px; color: #333;">账号管理</h2>
+
+                <div class="action-bar">
+                    <button class="btn-primary" onclick="openCreateModal()">➕ 创建账号</button>
+                    <input type="text" class="search-input" id="searchInput" placeholder="搜索邮箱或账号..." onkeyup="filterTable()">
+                    <select class="select-input" id="productFilter" onchange="filterTable()">
+                        <option value="">全部产品</option>
+                        <option value="掌上AD">掌上AD</option>
+                        <option value="AD搭子">AD搭子</option>
+                        <option value="AD晴雨表">AD晴雨表</option>
+                    </select>
+                    <select class="select-input" id="statusFilter" onchange="filterTable()">
+                        <option value="">全部状态</option>
+                        <option value="active">正常</option>
+                        <option value="disabled">已禁用</option>
+                    </select>
+                </div>
+
+                <div class="table-container">
+                    <table id="accountTable">
+                        <thead>
+                            <tr>
+                                <th>邮箱</th>
+                                <th>产品</th>
+                                <th>用量</th>
+                                <th>邀请码</th>
+                                <th>状态</th>
+                                <th>创建时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="accountTableBody">
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="pagination">
+                    <span>显示 <span id="pageInfo">1-10</span> of 156 条</span>
+                    <div class="pagination-buttons">
+                        <button class="page-btn" onclick="prevPage()" id="prevBtn">上一页</button>
+                        <button class="page-btn active" onclick="setPage(1)">1</button>
+                        <button class="page-btn" onclick="setPage(2)">2</button>
+                        <button class="page-btn" onclick="setPage(3)">3</button>
+                        <button class="page-btn" onclick="nextPage()" id="nextBtn">下一页</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Operation Log Page -->
+            <div id="logs" class="page">
+                <h2 style="font-size: 20px; margin-bottom: 20px; color: #333;">操作日志</h2>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>时间</th>
+                                <th>操作人</th>
+                                <th>操作类型</th>
+                                <th>详情</th>
+                            </tr>
+                        </thead>
+                        <tbody id="logTableBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="pagination">
+                    <span>显示 <span id="logPageInfo">1-10</span> of <span id="logTotal">0</span> 条</span>
+                    <div class="pagination-buttons" id="logPaginationBtns"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create/Edit Account Modal -->
+    <div class="modal-overlay" id="accountModal" onclick="closeModalOnOverlay(event)">
+        <div class="modal">
+            <div class="modal-header">
+                <span class="modal-title" id="modalTitle">创建账号</span>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">邮箱 <span class="required">*</span></label>
+                    <input type="email" class="form-input" id="emailInput" placeholder="user@example.com">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">初始密码 <span class="required">*</span></label>
+                    <div class="password-input-group">
+                        <input type="text" class="form-input" id="passwordInput" placeholder="自动生成或手动输入">
+                        <button class="copy-btn" onclick="generatePassword()">生成</button>
+                        <button class="copy-btn" onclick="copyPassword()">复制</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">产品 <span class="required">*</span></label>
+                    <select class="form-input" id="productInput">
+                        <option value="">请选择产品</option>
+                        <option value="掌上AD">掌上AD</option>
+                        <option value="AD搭子">AD搭子</option>
+                        <option value="AD晴雨表">AD晴雨表</option>
+                    </select>
+                    <div style="font-size:11px;color:#999;margin-top:4px;">同一邮箱使用多个产品时，需为每个产品分别创建账号</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">该用户的邀请码 <span style="font-weight:400;font-size:12px;color:#999;">（每人一个，可被多人使用）</span></label>
+                    <input type="text" class="form-input" id="myCodeInput" placeholder="如 ZS-ABC123，留空则自动生成">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">使用的邀请码 <span style="font-weight:400;font-size:12px;color:#999;">（注册时填写的别人的邀请码，只能填一个）</span></label>
+                    <input type="text" class="form-input" id="usedCodeInput" placeholder="留空表示无邀请码">
+                </div>
+
+                <div class="form-group" id="usageGroup">
+                    <label class="form-label">用量设置</label>
+                    <div style="font-size:12px;color:#999;margin-bottom:8px;" id="usageHint">掌上AD=广告账号数 · AD搭子=模板数 · AD晴雨表=消息查看数</div>
+                    <div style="display:flex;gap:12px;">
+                      <div style="flex:1;">
+                        <label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">已用</label>
+                        <input type="number" class="form-input" id="usageUsedInput" min="0" placeholder="0" style="padding:6px 10px;">
+                      </div>
+                      <div style="flex:1;">
+                        <label style="font-size:12px;color:#666;display:block;margin-bottom:4px;">上限</label>
+                        <input type="number" class="form-input" id="usageLimitInput" min="1" placeholder="5" style="padding:6px 10px;">
+                      </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">备注</label>
+                    <textarea class="textarea-input" id="remarksInput" placeholder="可选的备注信息"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeModal()">取消</button>
+                <button class="btn-primary" onclick="saveAccount()" id="saveBtn">创建</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Dialog -->
+    <div class="modal-overlay" id="confirmModal" onclick="closeConfirmOnOverlay(event)">
+        <div class="confirm-dialog">
+            <div class="modal-body">
+                <div style="font-size: 18px; margin: 16px 0;">⚠️</div>
+                <div class="confirm-message" id="confirmMessage"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeConfirm()">取消</button>
+                <button class="btn-primary" onclick="confirmAction()" id="confirmBtn">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sample account data
+        // Feishu login/logout
+        function feishuLogin() {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('mainNavbar').style.display = 'flex';
+            document.getElementById('mainContainer').style.display = 'flex';
+            document.getElementById('currentUserName').textContent = '客服：张三（飞书）';
+            showToast('飞书登录成功', 'success');
+            init();
+        }
+        function feishuLogout() {
+            document.getElementById('mainNavbar').style.display = 'none';
+            document.getElementById('mainContainer').style.display = 'none';
+            document.getElementById('loginScreen').style.display = 'flex';
+            showToast('已退出登录', 'info');
+        }
+
+        // Operation logs — sorted by time descending
+        const logBadgeMap = {
+            '创建账号': 'badge-indigo',
+            '重置密码': 'badge-blue',
+            '启用账号': 'badge-green',
+            '禁用账号': '',
+            '修改信息': '',
+        };
+        const logBadgeStyle = {
+            '禁用账号': 'background-color:#ffe7ba;color:#ad6800;',
+            '修改信息': 'background-color:#e8e6f7;color:#5b4fd4;',
+        };
+        let logs = [
+            { time: '2024-03-19 14:32', user: '张三', action: '创建账号', detail: 'user@example.com - 掌上AD' },
+            { time: '2024-03-19 14:15', user: '李四', action: '重置密码', detail: 'demo@company.com - AD搭子' },
+            { time: '2024-03-19 13:45', user: '张三', action: '禁用账号', detail: 'test@demo.com - AD晴雨表' },
+            { time: '2024-03-19 11:20', user: '王五', action: '启用账号', detail: 'user2@test.com - AD搭子' },
+            { time: '2024-03-19 10:05', user: '李四', action: '修改信息', detail: 'admin@test.com - 掌上AD (用量调整)' },
+            { time: '2024-03-19 09:30', user: '张三', action: '创建账号', detail: 'newuser@company.com - AD搭子' },
+            { time: '2024-03-19 08:15', user: '王五', action: '重置密码', detail: 'old@example.com - AD晴雨表' },
+            { time: '2024-03-18 16:45', user: '李四', action: '禁用账号', detail: 'inactive@demo.com - 掌上AD' },
+            { time: '2024-03-18 15:20', user: '张三', action: '启用账号', detail: 'reactivate@test.com - AD搭子' },
+            { time: '2024-03-18 14:00', user: '王五', action: '修改信息', detail: 'update@company.com - AD晴雨表 (备注更新)' },
+            { time: '2024-03-18 10:30', user: '张三', action: '创建账号', detail: 'test2@example.com - 掌上AD' },
+            { time: '2024-03-18 09:15', user: '李四', action: '重置密码', detail: 'admin@test.com - 掌上AD' },
+            { time: '2024-03-17 17:40', user: '王五', action: '创建账号', detail: 'partner@biz.com - AD晴雨表' },
+            { time: '2024-03-17 15:10', user: '张三', action: '修改信息', detail: 'demo@company.com - AD搭子 (用量调整)' },
+            { time: '2024-03-17 11:00', user: '李四', action: '启用账号', detail: 'inactive@demo.com - 掌上AD' },
+            { time: '2024-03-17 09:20', user: '王五', action: '创建账号', detail: 'new@startup.io - AD搭子' },
+            { time: '2024-03-16 16:30', user: '张三', action: '禁用账号', detail: 'spam@test.com - AD晴雨表' },
+            { time: '2024-03-16 14:00', user: '李四', action: '创建账号', detail: 'vip@enterprise.com - 掌上AD' },
+            { time: '2024-03-16 10:45', user: '王五', action: '重置密码', detail: 'user2@test.com - AD搭子' },
+            { time: '2024-03-16 08:30', user: '张三', action: '修改信息', detail: 'old@example.com - AD晴雨表 (用量调整)' },
+            { time: '2024-03-15 17:00', user: '李四', action: '创建账号', detail: 'agency@ads.com - AD搭子' },
+            { time: '2024-03-15 14:20', user: '王五', action: '启用账号', detail: 'spam@test.com - AD晴雨表' },
+        ].sort((a, b) => b.time.localeCompare(a.time));
+
+        let logCurrentPage = 1;
+        const logItemsPerPage = 10;
+
+        function renderLogTable() {
+            const tbody = document.getElementById('logTableBody');
+            const start = (logCurrentPage - 1) * logItemsPerPage;
+            const end = start + logItemsPerPage;
+            const pageData = logs.slice(start, end);
+
+            tbody.innerHTML = pageData.map(log => {
+                const cls = logBadgeMap[log.action] || '';
+                const style = logBadgeStyle[log.action] || '';
+                return `<tr>
+                    <td>${log.time}</td>
+                    <td>${log.user}</td>
+                    <td><span class="badge ${cls}" ${style ? `style="${style}"` : ''}>${log.action}</span></td>
+                    <td>${log.detail}</td>
+                </tr>`;
+            }).join('');
+
+            const total = logs.length;
+            const s = start + 1;
+            const e = Math.min(end, total);
+            document.getElementById('logPageInfo').textContent = `${s}-${e}`;
+            document.getElementById('logTotal').textContent = total;
+
+            const totalPages = Math.ceil(total / logItemsPerPage);
+            const btnsEl = document.getElementById('logPaginationBtns');
+            let btnsHtml = `<button class="page-btn" onclick="logPrevPage()" ${logCurrentPage <= 1 ? 'disabled' : ''}>上一页</button>`;
+            for (let i = 1; i <= totalPages; i++) {
+                btnsHtml += `<button class="page-btn ${i === logCurrentPage ? 'active' : ''}" onclick="logSetPage(${i})">${i}</button>`;
+            }
+            btnsHtml += `<button class="page-btn" onclick="logNextPage()" ${logCurrentPage >= totalPages ? 'disabled' : ''}>下一页</button>`;
+            btnsEl.innerHTML = btnsHtml;
+        }
+
+        function logPrevPage() { if (logCurrentPage > 1) { logCurrentPage--; renderLogTable(); } }
+        function logNextPage() { if (logCurrentPage * logItemsPerPage < logs.length) { logCurrentPage++; renderLogTable(); } }
+        function logSetPage(p) { logCurrentPage = p; renderLogTable(); }
+
+        // 掌上AD: 用量=广告账号数（已用/上限）
+        // AD搭子: 用量=模板数（已用/上限）
+        // AD晴雨表: 用量=消息查看数（已用/每日上限）
+        // 邀请码逻辑：myCode = 该用户的唯一邀请码（可被多人使用），usedCode = 该用户注册时填写的别人的邀请码（只能填一个）
+        let accounts = [
+            { id: 1, email: 'user@example.com', product: '掌上AD', status: 'active', created: '2024-03-10', myCode: 'ZS-X8K2M1', usedCode: 'ZS-VIP001', remarks: '', usage: { used: 3, limit: 5, lastActive: '2024-03-19' } },
+            { id: 2, email: 'demo@company.com', product: 'AD搭子', status: 'active', created: '2024-03-12', myCode: 'AD-R3F7N2', usedCode: '', remarks: '测试账号', usage: { used: 4, limit: 5, lastActive: '2024-03-18' } },
+            { id: 3, email: 'test@demo.com', product: 'AD晴雨表', status: 'disabled', created: '2024-02-28', myCode: 'QY-T3D8M1', usedCode: 'QY-VIP100', remarks: '', usage: { used: 2, limit: 10, lastActive: '2024-03-01' } },
+            { id: 4, email: 'admin@test.com', product: '掌上AD', status: 'active', created: '2024-01-15', myCode: 'ZS-VIP001', usedCode: '', remarks: '管理员账号', usage: { used: 12, limit: 20, lastActive: '2024-03-19' } },
+            { id: 5, email: 'user2@test.com', product: 'AD搭子', status: 'active', created: '2024-03-05', myCode: 'AD-T6W3J8', usedCode: 'AD-R3F7N2', remarks: '', usage: { used: 2, limit: 5, lastActive: '2024-03-17' } },
+            { id: 6, email: 'newuser@company.com', product: 'AD搭子', status: 'active', created: '2024-03-18', myCode: 'AD-N6C1P4', usedCode: 'AD-T6W3J8', remarks: '新入职员工', usage: { used: 0, limit: 3, lastActive: '2024-03-19' } },
+            { id: 7, email: 'old@example.com', product: 'AD晴雨表', status: 'active', created: '2024-02-01', myCode: 'QY-M2K9P5', usedCode: '', remarks: '', usage: { used: 8, limit: 10, lastActive: '2024-03-16' } },
+            { id: 8, email: 'inactive@demo.com', product: '掌上AD', status: 'disabled', created: '2023-12-20', myCode: 'ZS-I8D3Q7', usedCode: '', remarks: '未活跃', usage: { used: 1, limit: 5, lastActive: '2024-01-05' } },
+            { id: 9, email: 'reactivate@test.com', product: 'AD搭子', status: 'active', created: '2024-02-10', myCode: 'AD-H7L4X2', usedCode: 'AD-R3F7N2', remarks: '', usage: { used: 5, limit: 5, lastActive: '2024-03-19' } },
+            { id: 10, email: 'update@company.com', product: 'AD晴雨表', status: 'active', created: '2024-01-25', myCode: 'QY-VIP100', usedCode: '', remarks: 'VIP客户', usage: { used: 10, limit: 30, lastActive: '2024-03-19' } },
+        ];
+
+        let currentPage = 1;
+        const itemsPerPage = 10;
+        let filteredAccounts = [...accounts];
+        let editingAccountId = null;
+
+        // Initialize
+        function init() {
+            renderAccountTable();
+            renderLogTable();
+        }
+
+        // Page switching
+        function switchPage(page) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(page).classList.add('active');
+
+            document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+            event.target.closest('.nav-item').classList.add('active');
+        }
+
+        // Account table rendering
+        function renderAccountTable() {
+            const tbody = document.getElementById('accountTableBody');
+            const start = (currentPage - 1) * itemsPerPage;
+            const end = start + itemsPerPage;
+            const pageData = filteredAccounts.slice(start, end);
+
+            tbody.innerHTML = pageData.map(account => `
+                <tr>
+                    <td>${account.email}</td>
+                    <td><span class="badge ${getProductBadgeClass(account.product)}">${account.product}</span></td>
+                    <td>${renderUsageBrief(account)}</td>
+                    <td>
+                      <div style="font-size:11px;">
+                        ${account.myCode ? `<span style="display:inline-block;padding:2px 6px;background:#f5f4ff;border-radius:4px;color:#5b4fd4;">${account.myCode}</span>` : '<span style="color:#ccc;">未分配</span>'}
+                        ${account.usedCode ? `<div style="margin-top:3px;color:#999;">用了: <span style="color:#e67e22;">${account.usedCode}</span></div>` : ''}
+                      </div>
+                    </td>
+                    <td>
+                        <div class="status-indicator">
+                            <span class="status-dot ${account.status === 'active' ? 'active' : 'disabled'}"></span>
+                            ${account.status === 'active' ? '正常' : '已禁用'}
+                        </div>
+                    </td>
+                    <td>${account.created}</td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn-small" onclick="showUsage(${account.id})" style="color:#1890ff;border-color:#91d5ff;">用量</button>
+                            <button class="btn-small" onclick="openEditModal(${account.id})">编辑</button>
+                            <button class="btn-small" onclick="resetPassword(${account.id})">重置密码</button>
+                            <button class="btn-small ${account.status === 'active' ? 'btn-danger' : ''}" onclick="toggleStatus(${account.id})">
+                                ${account.status === 'active' ? '禁用' : '启用'}
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+
+            updatePagination();
+        }
+
+        // Filtering
+        function filterTable() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const product = document.getElementById('productFilter').value;
+            const status = document.getElementById('statusFilter').value;
+
+            filteredAccounts = accounts.filter(account => {
+                const matchSearch = account.email.toLowerCase().includes(search);
+                const matchProduct = !product || account.product === product;
+                const matchStatus = !status || account.status === status;
+                return matchSearch && matchProduct && matchStatus;
+            });
+
+            currentPage = 1;
+            renderAccountTable();
+        }
+
+        // Pagination
+        function updatePagination() {
+            const total = filteredAccounts.length;
+            const start = (currentPage - 1) * itemsPerPage + 1;
+            const end = Math.min(currentPage * itemsPerPage, total);
+            document.getElementById('pageInfo').textContent = `${start}-${end}`;
+
+            document.getElementById('prevBtn').disabled = currentPage === 1;
+            document.getElementById('nextBtn').disabled = end >= total;
+
+            document.querySelectorAll('.page-btn').forEach((btn, idx) => {
+                if (idx > 0 && idx < 4) {
+                    btn.classList.toggle('active', parseInt(btn.textContent) === currentPage);
+                }
+            });
+        }
+
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                renderAccountTable();
+            }
+        }
+
+        function nextPage() {
+            const total = filteredAccounts.length;
+            if (currentPage * itemsPerPage < total) {
+                currentPage++;
+                renderAccountTable();
+            }
+        }
+
+        function setPage(page) {
+            currentPage = page;
+            renderAccountTable();
+        }
+
+        // Modal functions
+        function openCreateModal() {
+            editingAccountId = null;
+            document.getElementById('modalTitle').textContent = '创建账号';
+            document.getElementById('saveBtn').textContent = '创建';
+            clearForm();
+            generatePassword();
+            document.getElementById('accountModal').classList.add('active');
+        }
+
+        function openEditModal(id) {
+            editingAccountId = id;
+            const account = accounts.find(a => a.id === id);
+            document.getElementById('modalTitle').textContent = '编辑账号';
+            document.getElementById('saveBtn').textContent = '保存';
+
+            document.getElementById('emailInput').value = account.email;
+            document.getElementById('emailInput').disabled = true;
+            document.getElementById('passwordInput').value = '';
+            document.getElementById('remarksInput').value = account.remarks;
+
+            // Set product
+            document.getElementById('productInput').value = account.product;
+
+            // Load invite codes
+            document.getElementById('myCodeInput').value = account.myCode || '';
+            document.getElementById('usedCodeInput').value = account.usedCode || '';
+
+            // Load usage
+            const u = account.usage || { used: 0, limit: 5 };
+            document.getElementById('usageUsedInput').value = u.used;
+            document.getElementById('usageLimitInput').value = u.limit;
+
+            document.getElementById('accountModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('accountModal').classList.remove('active');
+            document.getElementById('emailInput').disabled = false;
+            clearForm();
+        }
+
+        function closeModalOnOverlay(e) {
+            if (e.target === e.currentTarget) closeModal();
+        }
+
+        function clearForm() {
+            document.getElementById('emailInput').value = '';
+            document.getElementById('passwordInput').value = '';
+            document.getElementById('remarksInput').value = '';
+            document.getElementById('usageUsedInput').value = '';
+            document.getElementById('usageLimitInput').value = '';
+            document.getElementById('productInput').value = '';
+            document.getElementById('myCodeInput').value = '';
+            document.getElementById('usedCodeInput').value = '';
+        }
+
+        // Product-specific usage labels
+        function getUsageLabel(product) {
+            switch(product) {
+                case '掌上AD': return { name: '广告账号数', unit: '个' };
+                case 'AD搭子': return { name: '模板数', unit: '个' };
+                case 'AD晴雨表': return { name: '消息查看数', unit: '次' };
+                default: return { name: '用量', unit: '' };
+            }
+        }
+
+        // Brief usage display for table cell
+        function renderUsageBrief(account) {
+            const u = account.usage || { used: 0, limit: 0 };
+            const info = getUsageLabel(account.product);
+            const pct = u.limit > 0 ? Math.round(u.used / u.limit * 100) : 0;
+            const color = pct >= 90 ? '#ff4d4f' : pct >= 60 ? '#faad14' : '#52c41a';
+            return `<div style="font-size:12px;white-space:nowrap;">
+              <span style="font-weight:600;color:${color};">${u.used}</span><span style="color:#999;">/${u.limit}</span>
+              <div style="width:48px;height:4px;background:#f0f0f0;border-radius:2px;margin-top:3px;">
+                <div style="width:${pct}%;height:100%;background:${color};border-radius:2px;"></div>
+              </div>
+            </div>`;
+        }
+
+        // Usage detail modal — different metrics per product, with inline edit
+        let usageEditingId = null;
+        function showUsage(id) {
+            usageEditingId = id;
+            const account = accounts.find(a => a.id === id);
+            if (!account) return;
+            const u = account.usage || { used: 0, limit: 0, lastActive: '-' };
+            const info = getUsageLabel(account.product);
+            const pct = u.limit > 0 ? Math.round(u.used / u.limit * 100) : 0;
+            const barColor = pct >= 90 ? '#ff4d4f' : pct >= 60 ? '#faad14' : '#52c41a';
+            const myCodeHtml = account.myCode
+                ? `<span style="display:inline-block;padding:3px 8px;background:#f5f4ff;border-radius:4px;font-size:12px;color:#5b4fd4;">${account.myCode}</span>`
+                : '<span style="color:#ccc;">未分配</span>';
+            document.getElementById('confirmMessage').innerHTML = `
+              <div style="text-align:left;font-size:14px;line-height:1.8;">
+                <div style="font-size:16px;font-weight:600;margin-bottom:12px;text-align:center;">${account.email}</div>
+                <div style="padding:16px;background:#f9fafb;border-radius:10px;margin-bottom:14px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <span style="font-size:13px;color:#666;">${info.name}</span>
+                    <button onclick="toggleUsageEdit()" style="padding:3px 10px;background:white;border:1px solid #5b4fd4;border-radius:4px;color:#5b4fd4;font-size:11px;cursor:pointer;" id="usageEditBtn">编辑</button>
+                  </div>
+                  <div id="usageDisplay">
+                    <div style="display:flex;align-items:baseline;gap:4px;margin-bottom:8px;">
+                      <span style="font-size:28px;font-weight:700;color:${barColor};">${u.used}</span>
+                      <span style="font-size:16px;color:#999;">/ ${u.limit} ${info.unit}</span>
+                    </div>
+                    <div style="width:100%;height:8px;background:#e8e8ec;border-radius:4px;">
+                      <div style="width:${pct}%;height:100%;background:${barColor};border-radius:4px;"></div>
+                    </div>
+                    <div style="font-size:11px;color:#999;margin-top:4px;text-align:right;">已使用 ${pct}%</div>
+                  </div>
+                  <div id="usageEditForm" style="display:none;">
+                    <div style="display:flex;gap:10px;margin-top:8px;">
+                      <div style="flex:1;"><label style="font-size:11px;color:#666;">已用</label><input type="number" id="usageEditUsed" value="${u.used}" min="0" style="width:100%;padding:6px 8px;border:1px solid #d9d9e3;border-radius:4px;font-size:14px;"></div>
+                      <div style="flex:1;"><label style="font-size:11px;color:#666;">上限</label><input type="number" id="usageEditLimit" value="${u.limit}" min="1" style="width:100%;padding:6px 8px;border:1px solid #d9d9e3;border-radius:4px;font-size:14px;"></div>
+                    </div>
+                    <button onclick="saveUsageEdit()" style="margin-top:8px;padding:6px 16px;background:#5b4fd4;color:white;border:none;border-radius:4px;font-size:12px;cursor:pointer;width:100%;">保存用量</button>
+                  </div>
+                </div>
+                <div style="display:flex;gap:12px;margin-bottom:12px;">
+                  <div style="flex:1;padding:10px;background:#f5f4ff;border-radius:8px;text-align:center;">
+                    <div style="font-size:13px;font-weight:600;color:#5b4fd4;">${u.lastActive}</div>
+                    <div style="font-size:11px;color:#666;">最后活跃</div>
+                  </div>
+                  <div style="flex:1;padding:10px;background:#f0f9ff;border-radius:8px;text-align:center;">
+                    <div style="font-size:13px;font-weight:600;color:#1890ff;">${account.product}</div>
+                    <div style="font-size:11px;color:#666;">所属产品</div>
+                  </div>
+                </div>
+                <b>邀请码：</b>${myCodeHtml}<br>
+                <b>使用的邀请码：</b>${account.usedCode ? `<span style="color:#e67e22;font-weight:600;">${account.usedCode}</span>` : '<span style="color:#ccc;">无</span>'}<br>
+                <b>状态：</b>${account.status === 'active' ? '正常' : '已禁用'} · <b>创建：</b>${account.created}<br>
+                ${account.remarks ? '<b>备注：</b>' + account.remarks : ''}
+              </div>`;
+            window.confirmCallback = null;
+            document.getElementById('confirmBtn').style.display = 'none';
+            document.getElementById('confirmModal').classList.add('active');
+        }
+
+        function toggleUsageEdit() {
+            const display = document.getElementById('usageDisplay');
+            const form = document.getElementById('usageEditForm');
+            const btn = document.getElementById('usageEditBtn');
+            if (form.style.display === 'none') {
+                form.style.display = 'block';
+                display.style.display = 'none';
+                btn.textContent = '取消';
+            } else {
+                form.style.display = 'none';
+                display.style.display = 'block';
+                btn.textContent = '编辑';
+            }
+        }
+
+        function saveUsageEdit() {
+            if (!usageEditingId) return;
+            const account = accounts.find(a => a.id === usageEditingId);
+            if (!account) return;
+            const newUsed = parseInt(document.getElementById('usageEditUsed').value) || 0;
+            const newLimit = parseInt(document.getElementById('usageEditLimit').value) || 1;
+            account.usage = { ...account.usage, used: newUsed, limit: newLimit };
+            closeConfirm();
+            renderAccountTable();
+            showToast('用量已更新', 'success');
+        }
+
+        function generateInviteCode(product) {
+            const prefixMap = { '掌上AD': 'ZS', 'AD搭子': 'AD', 'AD晴雨表': 'QY' };
+            const prefix = prefixMap[product] || 'XX';
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            let code = '';
+            for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+            return prefix + '-' + code;
+        }
+
+        function generatePassword() {
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
+            let password = '';
+            for (let i = 0; i < 12; i++) {
+                password += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            document.getElementById('passwordInput').value = password;
+        }
+
+        function copyPassword() {
+            const password = document.getElementById('passwordInput').value;
+            if (password) {
+                navigator.clipboard.writeText(password);
+                showToast('密码已复制到剪贴板', 'success');
+            }
+        }
+
+        function saveAccount() {
+            const email = document.getElementById('emailInput').value.trim();
+            const password = document.getElementById('passwordInput').value;
+            const remarks = document.getElementById('remarksInput').value;
+            const product = document.getElementById('productInput').value;
+            const myCode = document.getElementById('myCodeInput').value.trim() || generateInviteCode(product);
+            const usedCode = document.getElementById('usedCodeInput').value.trim();
+            const usageUsed = parseInt(document.getElementById('usageUsedInput').value) || 0;
+            const usageLimit = parseInt(document.getElementById('usageLimitInput').value) || 5;
+
+            if (!email || !password || !product) {
+                showToast('请填写所有必填项', 'error');
+                return;
+            }
+
+            if (editingAccountId === null) {
+                // Create new account
+                const newId = Math.max(...accounts.map(a => a.id)) + 1;
+                const createdDate = new Date().toISOString().split('T')[0];
+
+                accounts.push({
+                    id: newId,
+                    email: email,
+                    product: product,
+                    status: 'active',
+                    created: createdDate,
+                    myCode: myCode,
+                    usedCode: usedCode,
+                    remarks: remarks,
+                    usage: { used: usageUsed, limit: usageLimit, lastActive: '-' }
+                });
+
+                showToast('账号创建成功，密码已复制到剪贴板', 'success');
+                copyPassword();
+            } else {
+                // Edit existing account
+                const account = accounts.find(a => a.id === editingAccountId);
+                if (account) {
+                    if (password) {
+                        showToast('密码已重置', 'success');
+                        copyPassword();
+                    }
+                    account.remarks = remarks;
+                    account.myCode = myCode;
+                    account.usedCode = usedCode;
+                    account.usage = { ...account.usage, used: usageUsed, limit: usageLimit };
+                    showToast('账号信息已更新', 'success');
+                }
+            }
+
+            closeModal();
+            filterTable();
+        }
+
+        function resetPassword(id) {
+            showConfirm(`确认重置该账号的密码？`, () => {
+                showToast('密码已重置，新密码已复制到剪贴板', 'success');
+            });
+        }
+
+        function toggleStatus(id) {
+            const account = accounts.find(a => a.id === id);
+            const action = account.status === 'active' ? '禁用' : '启用';
+            showConfirm(`确认${action}该账号？`, () => {
+                account.status = account.status === 'active' ? 'disabled' : 'active';
+                showToast(`账号已${action}`, 'success');
+                renderAccountTable();
+            });
+        }
+
+        // Toast notification
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        // Confirmation dialog
+        function showConfirm(message, onConfirm) {
+            document.getElementById('confirmMessage').textContent = message;
+            window.confirmCallback = onConfirm;
+            document.getElementById('confirmModal').classList.add('active');
+        }
+
+        function confirmAction() {
+            if (window.confirmCallback) {
+                window.confirmCallback();
+            }
+            closeConfirm();
+        }
+
+        function closeConfirm() {
+            document.getElementById('confirmModal').classList.remove('active');
+            document.getElementById('confirmBtn').style.display = '';
+            window.confirmCallback = null;
+        }
+
+        function closeConfirmOnOverlay(e) {
+            if (e.target === e.currentTarget) closeConfirm();
+        }
+
+        // Helper function
+        function getProductBadgeClass(product) {
+            switch(product) {
+                case '掌上AD': return 'badge-indigo';
+                case 'AD搭子': return 'badge-blue';
+                case 'AD晴雨表': return 'badge-green';
+                default: return '';
+            }
+        }
+
+        // Initialize after feishu login (not on DOMContentLoaded)
+    </script>
+</body>
+</html>

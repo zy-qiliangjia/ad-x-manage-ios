@@ -406,7 +406,6 @@ private struct AdsAccountCardView: View {
     let isUpdating: Bool
     let metrics: AdvertiserReportMetrics?
     let isLoadingMetrics: Bool
-    let onBudget: () -> Void
     let onToggle: () -> Void
     let onDrill: () -> Void
 
@@ -472,23 +471,8 @@ private struct AdsAccountCardView: View {
 
             Divider().padding(.horizontal, AppTheme.Spacing.lg)
 
-            // 底部：调整预算按钮 + 进入推广系列
+            // 底部：进入推广系列
             HStack {
-                Button(action: onBudget) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "pencil.circle.fill")
-                            .font(.system(size: 12))
-                        Text("调整预算")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .foregroundStyle(AppTheme.Colors.primary)
-                    .padding(.vertical, AppTheme.Spacing.sm)
-                    .padding(.horizontal, AppTheme.Spacing.md)
-                    .background(AppTheme.Colors.primaryBg)
-                    .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-
                 Spacer()
 
                 Button(action: onDrill) {

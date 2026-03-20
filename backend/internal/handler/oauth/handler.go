@@ -68,6 +68,36 @@ func (h *Handler) Callback(c *gin.Context) {
 	response.OK(c, res)
 }
 
+// Confirm 用户在 iOS 端确认选择广告主后保存入库
+// POST /api/v1/oauth/:platform/confirm
+func (h *Handler) Confirm(c *gin.Context) {
+	platformName := c.Param("platform")
+	userID := middleware.GetUserID(c)
+
+	var req dto.OAuthConfirmRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	res, err := h.svc.Confirm(c.Request.Context(), userID, platformName, &req)
+	if err != nil {
+		switch {
+		case errors.Is(err, oauthsvc.ErrTokenNotFound):
+			response.BadRequest(c, "授权记录不存在")
+		case errors.Is(err, oauthsvc.ErrForbidden):
+			response.Forbidden(c, "无权限操作该授权")
+		case errors.Is(err, oauthsvc.ErrQuotaExceeded):
+			response.BadRequest(c, "选择广告主数量超过账号额度")
+		default:
+			response.PlatformError(c, "保存广告主失败: "+err.Error())
+		}
+		return
+	}
+
+	response.OK(c, res)
+}
+
 // Redirect TikTok/Kwai 授权完成后回调此端点（需注册为平台 redirect_uri）
 // GET /oauth/:platform/redirect?code=xxx&state=xxx
 // 后端将参数透传到 iOS 自定义 scheme，由 ASWebAuthenticationSession 拦截

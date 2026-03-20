@@ -55,8 +55,22 @@ func main() {
 		fmt.Println("columns already renamed, skipping")
 	}
 
-	// 清理历史重复索引（幂等：索引不存在时忽略错误）
-	db.Exec(`ALTER TABLE platform_tokens DROP INDEX uk_user_platform_openid`)
+	// 将 platform_tokens 的 uk_user_platform_openid 从单列（open_user_id）
+	// 改为复合唯一索引（user_id + platform + open_user_id），以支持多用户授权同一第三方账号。
+	// 先查询当前索引的列数，若仍是单列则重建。
+	fmt.Println("rebuilding uk_user_platform_openid as composite index if needed...")
+	var indexColCount int64
+	db.Raw(`SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+		WHERE TABLE_SCHEMA = DATABASE()
+		  AND TABLE_NAME   = 'platform_tokens'
+		  AND INDEX_NAME   = 'uk_user_platform_openid'`).Scan(&indexColCount)
+	if indexColCount == 1 {
+		// 单列索引，需要重建为复合索引
+		db.Exec(`ALTER TABLE platform_tokens DROP INDEX uk_user_platform_openid`)
+		fmt.Println("dropped single-column uk_user_platform_openid")
+	} else {
+		fmt.Println("uk_user_platform_openid already composite or absent, skipping drop")
+	}
 
 	// 修复多用户授权同一第三方账号的 bug：
 	// 将各表的 unique key 从平台维度改为用户+平台维度，

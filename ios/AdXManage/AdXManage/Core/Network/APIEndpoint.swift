@@ -13,6 +13,7 @@ enum APIEndpoint {
     // ── OAuth ──────────────────────────────────────────────
     case oauthURL(platform: String)
     case oauthCallback(platform: String)
+    case oauthConfirm(platform: String)
     case oauthRevoke(platform: String, tokenID: Int)
 
     // ── 广告主 ─────────────────────────────────────────────
@@ -69,6 +70,7 @@ enum APIEndpoint {
 
         case .oauthURL(let p):                    return "/oauth/\(p)/url"
         case .oauthCallback(let p):               return "/oauth/\(p)/callback"
+        case .oauthConfirm(let p):                return "/oauth/\(p)/confirm"
         case .oauthRevoke(let p, let id):         return "/oauth/\(p)/\(id)"
 
         case .advertisers:                        return "/advertisers"
@@ -113,7 +115,7 @@ enum APIEndpoint {
     var method: String {
         switch self {
         case .register, .login, .logout, .refresh,
-             .oauthCallback, .advertiserSync, .advertiserSyncAll:
+             .oauthCallback, .oauthConfirm, .advertiserSync, .advertiserSyncAll:
             return "POST"
         case .oauthRevoke:
             return "DELETE"

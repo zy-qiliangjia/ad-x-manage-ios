@@ -25,6 +25,7 @@ var (
 	ErrPlatformUnknown = errors.New("unsupported platform")
 	ErrTokenNotFound   = errors.New("token not found")
 	ErrForbidden       = errors.New("no permission")
+	ErrQuotaExceeded   = errors.New("advertiser quota exceeded")
 )
 
 const stateKeyPrefix = "oauth:state:"
@@ -34,6 +35,7 @@ const stateTTL = 10 * time.Minute
 type Service interface {
 	GetOAuthURL(ctx context.Context, userID uint64, platformName string) (*dto.OAuthURLResponse, error)
 	Callback(ctx context.Context, userID uint64, platformName, code, state string) (*dto.OAuthCallbackResponse, error)
+	Confirm(ctx context.Context, userID uint64, platformName string, req *dto.OAuthConfirmRequest) (*dto.OAuthConfirmResponse, error)
 	Revoke(ctx context.Context, userID, tokenID uint64) error
 }
 
@@ -92,7 +94,8 @@ func (s *service) GetOAuthURL(ctx context.Context, userID uint64, platformName s
 	}, nil
 }
 
-// Callback 处理授权回调：校验 state → 换 token → 存库 → 同步广告主。
+// Callback 处理授权回调：校验 state → 换 token → 存库 → 拉取广告主列表（不保存）。
+// 返回平台全量广告主（含已存库标记）和当前额度信息，由 iOS 让用户选择后调用 Confirm。
 func (s *service) Callback(ctx context.Context, userID uint64, platformName, code, state string) (*dto.OAuthCallbackResponse, error) {
 	// 1. 验证 state 防 CSRF
 	if err := s.validateState(ctx, state, userID); err != nil {
@@ -135,13 +138,27 @@ func (s *service) Callback(ctx context.Context, userID uint64, platformName, cod
 		}
 	}
 
-	// 4. 拉取广告主并同步入库（受额度限制）
+	// 4. 拉取平台广告主列表（此阶段不入库，等待用户在 iOS 端确认选择）
 	advertisers, err := client.GetAdvertisers(tokenResult.AccessToken)
 	if err != nil {
 		return nil, fmt.Errorf("get advertisers: %w", err)
 	}
 
-	// 计算剩余可入库额度
+	// 5. 查询已存库的广告主（用于标记 is_existing）
+	allIDs := make([]string, 0, len(advertisers))
+	for _, adv := range advertisers {
+		allIDs = append(allIDs, adv.AdvertiserID)
+	}
+	existingAdvs, err := s.advRepo.FindByUserPlatformIDs(ctx, userID, platformName, allIDs)
+	if err != nil {
+		return nil, fmt.Errorf("check existing advertisers: %w", err)
+	}
+	existingSet := make(map[string]bool, len(existingAdvs))
+	for _, adv := range existingAdvs {
+		existingSet[adv.AdvertiserID] = true
+	}
+
+	// 6. 查询额度
 	user, err := s.userRepo.FindByID(ctx, userID)
 	if err != nil || user == nil {
 		return nil, fmt.Errorf("load user for quota check: %w", err)
@@ -154,16 +171,83 @@ func (s *service) Callback(ctx context.Context, userID uint64, platformName, cod
 	if remaining < 0 {
 		remaining = 0
 	}
-	// 仅保留未超额的广告主（已存在的 UPSERT 不受影响，只限制新增）
-	if int64(len(advertisers)) > remaining {
-		advertisers = advertisers[:remaining]
+
+	// 7. 组装响应
+	items := make([]dto.AdvertiserItem, 0, len(advertisers))
+	for _, adv := range advertisers {
+		items = append(items, dto.AdvertiserItem{
+			AdvertiserID:   adv.AdvertiserID,
+			AdvertiserName: adv.AdvertiserName,
+			Currency:       adv.Currency,
+			Timezone:       adv.Timezone,
+			IsExisting:     existingSet[adv.AdvertiserID],
+		})
 	}
 
+	return &dto.OAuthCallbackResponse{
+		TokenID:     platformToken.ID,
+		Platform:    platformName,
+		Advertisers: items,
+		Quota:       user.Quota,
+		UsedQuota:   int(currentCount),
+		Remaining:   int(remaining),
+	}, nil
+}
+
+// Confirm 用户在 iOS 端确认选择广告主后调用：校验额度 → 保存选中广告主 → 触发同步。
+func (s *service) Confirm(ctx context.Context, userID uint64, platformName string, req *dto.OAuthConfirmRequest) (*dto.OAuthConfirmResponse, error) {
+	// 1. 校验 token 归属
+	token, err := s.tokenRepo.FindByID(ctx, req.TokenID)
+	if err != nil {
+		return nil, fmt.Errorf("load token: %w", err)
+	}
+	if token == nil {
+		return nil, ErrTokenNotFound
+	}
+	if token.UserID != userID {
+		return nil, ErrForbidden
+	}
+
+	// 2. 额度校验：已存库数 + 新选数 不得超过总额度
+	user, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil || user == nil {
+		return nil, fmt.Errorf("load user: %w", err)
+	}
+	currentCount, err := s.advRepo.CountActiveByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("count advertisers: %w", err)
+	}
+	remaining := int64(user.Quota) - currentCount
+	if remaining < 0 {
+		remaining = 0
+	}
+	if int64(len(req.AdvertiserIDs)) > remaining {
+		return nil, ErrQuotaExceeded
+	}
+
+	// 3. 从平台重新拉取广告主信息，按选中 IDs 过滤
+	client, err := s.getClient(platformName)
+	if err != nil {
+		return nil, err
+	}
+	allAdvs, err := client.GetAdvertisers(token.AccessToken)
+	if err != nil {
+		return nil, fmt.Errorf("get advertisers: %w", err)
+	}
+	selectedSet := make(map[string]bool, len(req.AdvertiserIDs))
+	for _, id := range req.AdvertiserIDs {
+		selectedSet[id] = true
+	}
+
+	// 4. 保存选中的广告主
 	now := time.Now()
-	entities := make([]*entity.Advertiser, 0, len(advertisers))
-	for _, adv := range advertisers {
+	entities := make([]*entity.Advertiser, 0, len(req.AdvertiserIDs))
+	for _, adv := range allAdvs {
+		if !selectedSet[adv.AdvertiserID] {
+			continue
+		}
 		entities = append(entities, &entity.Advertiser{
-			TokenID:        platformToken.ID,
+			TokenID:        req.TokenID,
 			UserID:         userID,
 			Platform:       platformName,
 			AdvertiserID:   adv.AdvertiserID,
@@ -174,24 +258,25 @@ func (s *service) Callback(ctx context.Context, userID uint64, platformName, cod
 			SyncedAt:       &now,
 		})
 	}
-	if err := s.advRepo.Upsert(ctx, entities); err != nil {
-		return nil, fmt.Errorf("save advertisers: %w", err)
+	if len(entities) > 0 {
+		if err := s.advRepo.Upsert(ctx, entities); err != nil {
+			return nil, fmt.Errorf("save advertisers: %w", err)
+		}
 	}
 
-	// 刷新 used_quota（重新计算，覆盖写入）
+	// 5. 刷新 used_quota
 	if newCount, err := s.advRepo.CountActiveByUserID(ctx, userID); err == nil {
 		_ = s.userRepo.SetUsedQuota(ctx, userID, int(newCount))
 	}
 
-	// 5. 查询已存入 DB 的广告主（带 ID），触发后台同步
+	// 6. 触发后台同步（当前平台全量已授权广告主）
 	savedAdvs, _, _ := s.advRepo.FindByUserAndPlatform(ctx, userID, platformName, "", 1, 1000)
 	s.triggerBackgroundSync(savedAdvs)
 
-	// 6. 组装响应
-	items := make([]dto.AdvertiserItem, 0, len(savedAdvs))
-	for _, a := range savedAdvs {
+	// 7. 组装响应
+	items := make([]dto.AdvertiserItem, 0, len(entities))
+	for _, a := range entities {
 		items = append(items, dto.AdvertiserItem{
-			ID:             a.ID,
 			AdvertiserID:   a.AdvertiserID,
 			AdvertiserName: a.AdvertiserName,
 			Currency:       a.Currency,
@@ -200,8 +285,8 @@ func (s *service) Callback(ctx context.Context, userID uint64, platformName, cod
 		})
 	}
 
-	return &dto.OAuthCallbackResponse{
-		TokenID:     platformToken.ID,
+	return &dto.OAuthConfirmResponse{
+		TokenID:     req.TokenID,
 		Platform:    platformName,
 		Advertisers: items,
 	}, nil

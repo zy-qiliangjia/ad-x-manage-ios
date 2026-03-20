@@ -5,8 +5,8 @@ import "time"
 // PlatformToken 存储用户在各广告平台的 OAuth 授权凭证（Token 加密存储）。
 type PlatformToken struct {
 	ID              uint64     `gorm:"primaryKey;autoIncrement"                          json:"id"`
-	UserID          uint64     `gorm:"not null;index:idx_user_platform"                  json:"user_id"`
-	Platform        string     `gorm:"size:20;not null;index:idx_user_platform"          json:"platform"`
+	UserID          uint64     `gorm:"not null;index:idx_user_platform;uniqueIndex:uk_user_platform_openid" json:"user_id"`
+	Platform        string     `gorm:"size:20;not null;index:idx_user_platform;uniqueIndex:uk_user_platform_openid" json:"platform"`
 	OpenUserID      string     `gorm:"size:100;not null;uniqueIndex:uk_user_platform_openid" json:"open_user_id"`
 	AccessToken  string     `gorm:"column:access_token;type:text;not null"   json:"-"`
 	RefreshToken string     `gorm:"column:refresh_token;type:text;default:null" json:"-"`

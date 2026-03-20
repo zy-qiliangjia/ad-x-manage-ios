@@ -17,7 +17,7 @@ struct LoginView: View {
                         Image(systemName: "chart.bar.xaxis")
                             .font(.system(size: 56))
                             .foregroundStyle(.blue)
-                        Text("AdX Manage")
+                        Text("掌上AD")
                             .font(.title.bold())
                         Text("广告聚合管理平台")
                             .font(.subheadline)

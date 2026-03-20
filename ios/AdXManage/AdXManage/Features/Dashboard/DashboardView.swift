@@ -55,12 +55,12 @@ struct DashboardView: View {
     @State private var showDatePicker = false
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                // 渐变 Header
-                headerSection
+        VStack(spacing: 0) {
+            // 渐变 Header（固定在 ScrollView 外，避免被 ScrollView 裁切背景）
+            headerSection
 
-                // 内容区
+            // 内容区
+            ScrollView {
                 VStack(spacing: AppTheme.Spacing.lg) {
                     // 统计卡片
                     if vm.isLoading && vm.overview == nil {
@@ -79,9 +79,10 @@ struct DashboardView: View {
                 }
                 .padding(.top, AppTheme.Spacing.lg)
             }
+            .background(AppTheme.Colors.background)
+            .refreshable { if appState.isLoggedIn { await vm.load() } }
         }
         .background(AppTheme.Colors.background)
-        .refreshable { if appState.isLoggedIn { await vm.load() } }
         .alert("加载失败", isPresented: Binding(
             get: { vm.error != nil },
             set: { if !$0 { vm.error = nil } }
@@ -176,7 +177,7 @@ struct DashboardView: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            .ignoresSafeArea(edges: .top)
+            .ignoresSafeArea(edges: appState.isLoggedIn ? .top : [])
         }
     }
 

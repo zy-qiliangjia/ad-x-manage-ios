@@ -24,7 +24,7 @@ struct ContactGuideSheet: View {
             VStack(spacing: 6) {
                 Text("📊")
                     .font(.system(size: 36))
-                Text("开通 AdX Manage 账号")
+                Text("开通 掌上AD 账号")
                     .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(AppTheme.Colors.textPrimary)
                 Text("添加客服，告知您的需求，即可开通")

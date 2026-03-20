@@ -51,6 +51,15 @@ final class OAuthService: NSObject {
         )
     }
 
+    // MARK: - 确认选择广告主
+
+    func confirm(platform: Platform, tokenID: UInt64, advertiserIDs: [String]) async throws -> OAuthConfirmResponse {
+        return try await client.request(
+            .oauthConfirm(platform: platform.rawValue),
+            body: OAuthConfirmRequest(tokenID: tokenID, advertiserIDs: advertiserIDs)
+        )
+    }
+
     // MARK: - 解绑授权
 
     func revoke(platform: Platform, tokenID: UInt64) async throws {

@@ -142,6 +142,7 @@ func New(cfg *config.Config, db *gorm.DB, rdb *redis.Client, log *zap.Logger) *g
 		{
 			oauth.GET("/:platform/url", oauthHandler.GetURL)
 			oauth.POST("/:platform/callback", oauthHandler.Callback)
+			oauth.POST("/:platform/confirm", oauthHandler.Confirm)
 			oauth.DELETE("/:platform/:token_id", oauthHandler.Revoke)
 		}
 

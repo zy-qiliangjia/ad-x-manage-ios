@@ -11,25 +11,24 @@ struct ContentView: View {
     @State private var showLogin   = false
 
     var body: some View {
-        ZStack {
+        VStack(spacing: 0) {
+            // 未登录时在顶部显示体验模式 Banner（在 safe area 内，推开 TabView 内容）
+            if !appState.isLoggedIn {
+                demoBanner
+            }
+
             MainTabView()
-                // 未登录时在顶部追加体验模式 Banner
-                .safeAreaInset(edge: .top, spacing: 0) {
+                // 未登录时点击任意位置弹出联系客服引导弹窗
+                .overlay {
                     if !appState.isLoggedIn {
-                        demoBanner
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                Task { await appState.fetchConfig() }
+                                showContact = true
+                            }
                     }
                 }
-
-            // 未登录时：透明覆盖层捕获所有点击，触发引导弹窗
-            if !appState.isLoggedIn {
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        Task { await appState.fetchConfig() }
-                        showContact = true
-                    }
-                    .ignoresSafeArea()
-            }
         }
         // 联系客服引导底部弹窗
         .sheet(isPresented: $showContact) {

@@ -15,8 +15,62 @@ struct OAuthCallbackRequest: Encodable {
 }
 
 // MARK: - 回调响应（后端 → iOS）
+// 此阶段返回平台全量广告主（含已存库标记）和额度信息，不保存广告主。
+// 用户在 iOS 端选择后调用 Confirm 接口才正式保存。
 
 struct OAuthCallbackResponse: Decodable {
+    let tokenID: UInt64
+    let platform: String
+    let advertisers: [OAuthAdvertiserItem]
+    let quota: Int
+    let usedQuota: Int
+    let remaining: Int
+
+    enum CodingKeys: String, CodingKey {
+        case tokenID     = "token_id"
+        case platform
+        case advertisers
+        case quota
+        case usedQuota   = "used_quota"
+        case remaining
+    }
+}
+
+struct OAuthAdvertiserItem: Decodable, Identifiable {
+    /// 平台广告主 ID（唯一，用作 SwiftUI Identifiable key）
+    let advertiserID: String
+    let advertiserName: String
+    let currency: String
+    let timezone: String
+    let syncedAt: Date?
+    let isExisting: Bool  // true = 已存库，UI 需锁定
+
+    /// Identifiable 使用平台广告主 ID，避免未入库时 DB id=0 引发的重复 key 问题
+    var id: String { advertiserID }
+
+    enum CodingKeys: String, CodingKey {
+        case advertiserID   = "advertiser_id"
+        case advertiserName = "advertiser_name"
+        case currency
+        case timezone
+        case syncedAt       = "synced_at"
+        case isExisting     = "is_existing"
+    }
+}
+
+// MARK: - 确认选择（iOS → 后端）
+
+struct OAuthConfirmRequest: Encodable {
+    let tokenID: UInt64
+    let advertiserIDs: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case tokenID      = "token_id"
+        case advertiserIDs = "advertiser_ids"
+    }
+}
+
+struct OAuthConfirmResponse: Decodable {
     let tokenID: UInt64
     let platform: String
     let advertisers: [OAuthAdvertiserItem]
@@ -25,24 +79,6 @@ struct OAuthCallbackResponse: Decodable {
         case tokenID     = "token_id"
         case platform
         case advertisers
-    }
-}
-
-struct OAuthAdvertiserItem: Decodable, Identifiable {
-    let id: UInt64
-    let advertiserID: String
-    let advertiserName: String
-    let currency: String
-    let timezone: String
-    let syncedAt: Date?
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case advertiserID   = "advertiser_id"
-        case advertiserName = "advertiser_name"
-        case currency
-        case timezone
-        case syncedAt       = "synced_at"
     }
 }
 

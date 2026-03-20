@@ -62,14 +62,14 @@ struct ContentView: View {
         HStack(spacing: 0) {
             // 左侧：状态标签
             HStack(spacing: 5) {
-                Text("DEMO")
+                Text("预览模式")
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 5)
                     .padding(.vertical, 2)
                     .background(Color(red: 0.95, green: 0.60, blue: 0.10))
                     .clipShape(RoundedRectangle(cornerRadius: 3))
-                Text("示例数据，功能受限")
+                Text("登录后访问您的数据")
                     .font(.system(size: 12))
                     .foregroundStyle(Color(red: 0.45, green: 0.28, blue: 0.05))
             }

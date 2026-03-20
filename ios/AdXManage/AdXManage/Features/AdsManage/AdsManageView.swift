@@ -19,6 +19,7 @@ enum AdsNav: Hashable {
 
 struct AdsManageView: View {
 
+    @EnvironmentObject private var appState: AppState
     @StateObject private var vm       = AdsManageListViewModel()
     @StateObject private var oauthVM  = OAuthViewModel()
     @State private var navPath: [AdsNav] = []
@@ -131,6 +132,9 @@ struct AdsManageView: View {
             } message: { Text(vm.error ?? "") }
         }
         .task { await vm.load() }
+        .onChange(of: appState.isLoggedIn) { _, isLoggedIn in
+            if !isLoggedIn { navPath = [] }
+        }
     }
 
     @ViewBuilder

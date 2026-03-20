@@ -19,7 +19,7 @@ struct LoginView: View {
                             .foregroundStyle(.blue)
                         Text("掌上AD")
                             .font(.title.bold())
-                        Text("广告聚合管理平台")
+                        Text("广告账户管理工具")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }

@@ -118,7 +118,7 @@ struct DashboardView: View {
                     Text("掌上AD")
                         .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(.white)
-                    Text("广告聚合管理平台")
+                    Text("广告账户管理工具")
                         .font(.system(size: 13))
                         .foregroundStyle(.white.opacity(0.75))
                 }
